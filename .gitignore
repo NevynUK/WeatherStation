@@ -31,3 +31,7 @@
 
 # Mac files
 .DS_Store
+
+# Special files to ignore
+secrets.h
+secrets.c
