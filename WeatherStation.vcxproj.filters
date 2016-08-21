@@ -19,7 +19,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="WeatherStation.ino" />
-    <None Include="ClassDiagram.cd" />
     <None Include="README.md">
       <Filter>Support files</Filter>
     </None>

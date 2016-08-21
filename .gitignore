@@ -46,3 +46,8 @@
 # Special files to ignore
 secrets.h
 secrets.c
+
+# Directories to ignore
+Release/
+Debug/
+x64/

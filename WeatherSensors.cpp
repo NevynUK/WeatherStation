@@ -304,7 +304,7 @@ void WeatherSensors::ReadSTM8SSensors()
         buffer[index] = Wire.read();
     }
     //Wire.readBytes(buffer, I2CBufferSize);
-    Debugger::DebugMessage("STMN8S Sensor data", buffer, I2CBufferSize);
+    Debugger::DebugMessage("STM8S Sensor data", buffer, I2CBufferSize);
 }
 
 //******************************************************************************

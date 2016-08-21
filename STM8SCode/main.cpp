@@ -36,8 +36,11 @@
 //
 //  Define some pins to output diagnostic data.
 //
-#define PIN_BIT_BANG_DATA       PD_ODR_ODR4
-#define PIN_BIT_BANG_CLOCK      PD_ODR_ODR5
+#define PIN_BIT_BANG_DATA       PC_ODR_ODR3
+#define PIN_BIT_BANG_CLOCK      PC_ODR_ODR4
+//
+//  Wind Direction sensor.
+//
 #define PIN_WIND_DIRECTION      PD_ODR_ODR6
 
 //
@@ -51,9 +54,11 @@
 //
 //  Now the timer values for the sensor reading (2 S = 2,000,000 uS).
 //
-#define SENSOR_READING_LENGTH       2000000
-#define SENSOR_READING_PRESCALAR    32768
-#define SENSOR_READING_PULSE_COUNT  (CLOCK_SPEED * SENSOR_READING_LENGTH / SENSOR_READING_PRESCALAR)
+#define SENSOR_READING_LENGTH       		2000000
+#define TIMER2_SENSOR_READING_PRESCALAR     0x05
+#define SENSOR_READING_PULSE_COUNT  		(CLOCK_SPEED * SENSOR_READING_LENGTH / TIMER2_SENSOR_READING_PRESCALAR)
+#define TIMER2_SENSOR_LOW_BYTE   			((unsigned char) ((SENSOR_READING_PULSE_COUNT & 0xff)))
+#define TIMER2_SENSOR_HIGH_BYTE  			((unsigned char) ((SENSOR_READING_PULSE_COUNT >> 8) & 0xff))
 
 //
 //  Define which ADC is for which sensor.
@@ -84,13 +89,13 @@ volatile unsigned char _resetCode;
 //
 volatile unsigned short _uvReading = 0;
 volatile unsigned short _windDirectionReading = 0;
-volatile unsigned int _rainGaugePulseCount = 0;
-volatile unsigned int _windSpeedPulseCount = 0;
+volatile unsigned short _rainGaugePulseCount = 0;
+volatile unsigned short _windSpeedPulseCount = 0;
 
 //
 //  I2C config information
 //
-#define DEVICE_ADDRESS          0x48
+#define DEVICE_ADDRESS          			0x48
 //
 //  Somewhere to hold the data for the I2C interface.
 //
@@ -120,26 +125,27 @@ volatile bool _processCommand = false;
 #define I2C_DATA_READY                      0x03
 #define I2C_RESET_RAINFALL_COUNTER          0x04
 
+//--------------------------------------------------------------------------------
 //
 //  Bit bang data on the diagnostic pins.
 //
 void BitBang(unsigned char byte)
 {
-//    for (short bit = 7; bit >= 0; bit--)
-//    {
-//        if (byte & (1 << bit))
-//        {
-//            PIN_BIT_BANG_DATA = 1;
-//        }
-//        else
-//        {
-//            PIN_BIT_BANG_DATA = 0;
-//        }
-//        PIN_BIT_BANG_CLOCK = 1;
-//        __no_operation();
-//        PIN_BIT_BANG_CLOCK = 0;
-//    }
-//    PIN_BIT_BANG_DATA = 0;
+    for (short bit = 7; bit >= 0; bit--)
+    {
+        if (byte & (1 << bit))
+        {
+            PIN_BIT_BANG_DATA = 1;
+        }
+        else
+        {
+            PIN_BIT_BANG_DATA = 0;
+        }
+        PIN_BIT_BANG_CLOCK = 1;
+        __no_operation();
+        PIN_BIT_BANG_CLOCK = 0;
+    }
+    PIN_BIT_BANG_DATA = 0;
 }
 
 //--------------------------------------------------------------------------------
@@ -238,10 +244,22 @@ void InitialiseGPIO()
     //  as an output, push-pull operating at upto 10 MHz, turn the pin
     //  off inititially.
     //
-    PC_DDR_DDR7 = 1;                    //  Output pin.
-    PC_CR1_C17 = 1;                     //  Push-pull output.
-    PC_CR2_C27 = 1;                     //  10 MHz output.
-    PC_ODR_ODR7 = 0;                    //  Turn pin off.
+    PC_DDR_DDR7 = 1;    	//  Output pin.
+    PC_CR1_C17 = 1;         //  Push-pull output.
+    PC_CR2_C27 = 1;         //  10 MHz output.
+    PC_ODR_ODR7 = 0;        //  Turn pin off.
+    //
+    //  Diagnostic output pins, one data, one clock.
+    //
+    PC_DDR_DDR3 = 1;    	//  Output pin.
+    PC_CR1_C13 = 1;         //  Push-pull output.
+    PC_CR2_C23 = 1;         //  10 MHz output.
+    PC_ODR_ODR3 = 0;        //  Turn pin off.
+    //
+    PC_DDR_DDR4 = 1;    	//  Output pin.
+    PC_CR1_C14 = 1;         //  Push-pull output.
+    PC_CR2_C24 = 1;         //  10 MHz output.
+    PC_ODR_ODR4 = 0;        //  Turn pin off.
 }
 
 //--------------------------------------------------------------------------------
@@ -255,9 +273,6 @@ void InitialiseI2C()
     //  Set up the clock information.
     //
     I2C_FREQR = 16;                     //  Set the internal clock frequency (MHz).
-//    I2C_CCRH_F_S = 0;                   //  I2C running is standard mode.
-//    I2C_CCRL = 0xa0;                    //  SCL clock speed is 50 KHz.
-//    I2C_CCRH_CCR = 0x00;
     //
     //  Set the address of this device.
     //
@@ -291,10 +306,10 @@ void InitialiseI2C()
 //
 void InitialiseTimer2ForResetPulse()
 {
-    TIM2_PSCR = 0x00;       //  Prescaler = 1.
+    TIM2_PSCR = 0x00;       			//  Prescaler = 1.
     TIM2_ARRH = TIMER2_RESET_HIGH_BYTE;
     TIM2_ARRL = TIMER2_RESET_LOW_BYTE;
-    TIM2_IER_UIE = 1;       //  Turn on the interrupts.
+    TIM2_IER_UIE = 1;       			//  Turn on the interrupts.
 }
 
 //--------------------------------------------------------------------------------
@@ -303,10 +318,10 @@ void InitialiseTimer2ForResetPulse()
 //
 void InitialiseTimer2ForSensorReadings()
 {
-    TIM2_PSCR = 0x00;       //  Prescaler = 1.
-    TIM2_ARRH = TIMER2_RESET_HIGH_BYTE;
-    TIM2_ARRL = TIMER2_RESET_LOW_BYTE;
-    TIM2_IER_UIE = 1;       //  Turn on the interrupts.
+    TIM2_PSCR = TIMER2_SENSOR_READING_PRESCALAR;
+    TIM2_ARRH = TIMER2_SENSOR_LOW_BYTE;
+    TIM2_ARRL = TIMER2_SENSOR_HIGH_BYTE;
+    TIM2_IER_UIE = 1;       			//  Turn on the interrupts.
 }
 
 //--------------------------------------------------------------------------------
@@ -380,14 +395,14 @@ void ExecuteI2CCommand()
 __interrupt void ADC1_EOC_IRQHandler()
 {
     unsigned char low, high;
-    int reading;
+    unsigned short reading;
 
     ADC_CR1_ADON = 0;       //  Disable the ADC.
-    ADC_CSR_EOC = 0;		// 	Indicate that ADC conversion is complete.
+    ADC_CSR_EOC = 0;    		// 	Indicate that ADC conversion is complete.
 
     low = ADC_DRL;			//	Extract the ADC reading.
     high = ADC_DRH;
-    reading = 1023 - ((high * 256) + low);
+    reading = ((high * 256) + low);
     if (ADC_CSR_CH == ADC_UV_SENSOR)
     {
         _uvReading = reading;
@@ -401,8 +416,7 @@ __interrupt void ADC1_EOC_IRQHandler()
     }
     else
     {
-        _windDirectionReading = reading;
-        _dataReady = true;
+        _windDirectionReading = 1023 - reading;
     }
 }
 
@@ -411,43 +425,50 @@ __interrupt void ADC1_EOC_IRQHandler()
 //  Timer 2 Overflow handler.
 //
 //  Timer 2 is used for two purposes, firstly controlling the length
-//  of the reset pulse for the ESP8266 and secondly, determining how
+//  of the interrupt pulse for the ESP8266 and secondly, determining how
 //  long we should read the wind speed sensor.
 //
-//  If PC_ODR_ODR7 is low on entering this method then the system has just
-//  generated a reset pulse.  In this case start the wind speed reading and
-//  the ADCs for the wind direction and UV sensor.
+//  If PC_ODR_ODR7 is high on entering this method then the system has just
+//  generated a interrupt pulse.
 //
-//  If PC_ODR_ODR7 is high then we are reading the wind speed.
+//  If PC_ODR_ODR7 is low then we are reading the wind speed so we should
+//	flag that the data is ready for reading and then start the interrupt pulse
+//	to the ESP8266.
 //
 #pragma vector = TIM2_OVR_UIF_vector
 __interrupt void TIM2_UPD_OVF_IRQHandler(void)
 {
-    if (!PC_ODR_ODR7)
+    //
+    //  Reset the interrupt otherwise it will fire again straight away
+    //	when this ISR exits.
+    //
+    TIM2_SR1_UIF = 0;
+    //
+    //	Now work out what to do.
+    //
+    if (PC_ODR_ODR7)
     {
-        PC_ODR_ODR7 = 0;            //  Reset pulse.
-        TIM2_CR1_CEN = 0;           //  Turn the timer off temporarily.
-        _windSpeedPulseCount = 0;
-        //
-        //  Start the ADC for the UV and wind direction sensor.
-        //
-        ADC_CSR_CH = ADC_UV_SENSOR; //  ADC for the UV sensor first.
-        ADC_CR1_ADON = 1;
-        __no_operation();
-        ADC_CR1_ADON = 1;
-        //
-        //  Reset the timer duration.
-        //
-//        TIM2_CR1_CEN = 1;           //  Turn the timer back on.
+    	//
+    	//	Interrupt pulse.
+    	//
+        PC_ODR_ODR7 = 0;            //  End the interrupt pulse.
+        TIM2_CR1_CEN = 0;           //  Turn the timer off.
     }
     else
     {
-        TIM2_CR1_CEN = 0;       //  Turn the timer off.
+        TIM2_CR1_CEN = 0;       	//  Turn the timer off temporarily.
+    	//
+    	//	Wind speed sensor has been read, the ADC will have completed
+    	//	long before the wind speed reading is ready.
+    	//
+        _dataReady = true;
+        //
+        //  Reset the timer duration for the ESP8266 interrupt.
+        //
+        InitialiseTimer2ForResetPulse();
+        TIM2_CR1_CEN = 1;           //  Turn the timer back on.
+        PC_ODR_ODR7 = 1;
     }
-    //
-    //  Reset the interrupt otherwise it will fire again straight away.
-    //
-    TIM2_SR1_UIF = 0;
 }
 
 //--------------------------------------------------------------------------------
@@ -477,13 +498,24 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
     if (changedBits & MASK_RTC)
     {
         //
-        //  RTC has generated an interrupt, generate a short reset pulse to
-        //  reset the ESP8266.
+        //  RTC has generated an interrupt, generate a short interrupt pulse to
+        //  tell the ESP8266 that it is time to read the sensors.
         //
         if (!(portDInput & MASK_RTC))
         {
-            PC_ODR_ODR7 = 1;
-            InitialiseTimer2ForResetPulse();
+	        //
+    	    //  Start the ADC for the UV and wind direction sensor.
+        	//
+ 	       	ADC_CSR_CH = ADC_UV_SENSOR; //  ADC for the UV sensor first.
+    	    ADC_CR1_ADON = 1;			// Reference manual says do this twice.
+        	__no_operation();
+        	ADC_CR1_ADON = 1;
+        	//
+        	//	Now kick off the timer for the wind speed reading.
+        	//
+	        _windSpeedPulseCount = 0;
+	        _dataReady = false;
+            InitialiseTimer2ForSensorReadings();
             TIM2_CR1_CEN = 1;       //  Turn on Timer 2.
         }
     }
@@ -502,7 +534,7 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
     //  i.e. during a reset or shortly afterwards when sesnor readings are
     //  being collected.
     //
-    if ((changedBits & MASK_WIND_SPEED) && TIM2_CR1_CEN)
+    if (changedBits & MASK_WIND_SPEED)
     {
         //
         //  Increment on the rising edge only.
@@ -516,7 +548,7 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
 
 //--------------------------------------------------------------------------------
 //
-//  I2C interrupts all share the same handler.
+//  I2C interrupt handler.
 //
 #pragma vector = I2C_RXNE_vector
 __interrupt void I2C_IRQHandler()
@@ -563,7 +595,6 @@ __interrupt void I2C_IRQHandler()
             //  Calling application is requesting too much data, return 0xff
             //  for this and all subsequent requests.
             //
-//            I2C_DR = 0xff;
             I2C_SR2_AF = 0;         // End of slave transmission.
             _processCommand = 0;
         }

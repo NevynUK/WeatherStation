@@ -1,5 +1,8 @@
 //
 //  Keys and passwords etc.
+//  
+//  Edit this file to add your user anmes, passowrd etc. and then 
+//  save the file as Secrets.h
 //
 
 #ifndef _SECRETS_h
