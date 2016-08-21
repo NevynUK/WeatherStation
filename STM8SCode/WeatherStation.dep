@@ -8,13 +8,13 @@
     <outputs>
       <file>$TOOLKIT_DIR$\inc\iostm8s103f3.h</file>
       <file>$PROJ_DIR$\Debug\Exe\templproj.out</file>
-      <file>$PROJ_DIR$\main.cpp</file>
-      <file>$PROJ_DIR$\Debug\Obj\main.pbi</file>
       <file>$TOOLKIT_DIR$\config\lnkstm8s103f3.icf</file>
-      <file>$TOOLKIT_DIR$\lib\dlstm8smn.a</file>
       <file>$TOOLKIT_DIR$\inc\io_macros.h</file>
+      <file>$PROJ_DIR$\Debug\Obj\main.pbi</file>
       <file>$PROJ_DIR$\Debug\Obj\WeatherStation.pbd</file>
+      <file>$TOOLKIT_DIR$\lib\dlstm8smn.a</file>
       <file>$TOOLKIT_DIR$\lib\dbgstm8smd.a</file>
+      <file>$PROJ_DIR$\main.cpp</file>
       <file>$TOOLKIT_DIR$\inc\c\intrinsics.h</file>
       <file>$PROJ_DIR$\Debug\Obj\main.o</file>
     </outputs>
@@ -23,7 +23,7 @@
       <inputs>
         <tool>
           <name>ILINK</name>
-          <file> 4 10 5 8</file>
+          <file> 2 10 6 7</file>
         </tool>
       </inputs>
     </file>
@@ -32,7 +32,7 @@
       <outputs>
         <tool>
           <name>BICOMP</name>
-          <file> 3</file>
+          <file> 4</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
@@ -42,11 +42,11 @@
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 9 6 0</file>
+          <file> 9 3 0</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
-          <file> 0 6 9</file>
+          <file> 0 3 9</file>
         </tool>
       </inputs>
     </file>

@@ -47,7 +47,7 @@
 //
 //  Definitions used in the code for pins etc.
 //
-#define VERSION             "0.12"
+#define VERSION             "0.13"
 //
 #define PIN_READ_SENSORS    11
 #define PIN_ONBOARD_LED     1
@@ -397,7 +397,7 @@ void setup()
     _sensors = new WeatherSensors();
     _sensors->InitialiseSensors();
     pinMode(PIN_ONBOARD_LED, INPUT);
-    attachInterrupt(digitalPinToInterrupt(PIN_ONBOARD_LED), RTCAlarmHandler, FALLING);
+    attachInterrupt(digitalPinToInterrupt(PIN_ONBOARD_LED), RTCAlarmHandler, RISING);
 }
 
 //

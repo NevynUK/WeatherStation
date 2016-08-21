@@ -56,7 +56,7 @@
 //
 #define SENSOR_READING_LENGTH       		2000000
 #define TIMER2_SENSOR_READING_PRESCALAR     0x05
-#define SENSOR_READING_PULSE_COUNT  		(CLOCK_SPEED * SENSOR_READING_LENGTH / TIMER2_SENSOR_READING_PRESCALAR)
+#define SENSOR_READING_PULSE_COUNT  		(CLOCK_SPEED * SENSOR_READING_LENGTH / 32768)
 #define TIMER2_SENSOR_LOW_BYTE   			((unsigned char) ((SENSOR_READING_PULSE_COUNT & 0xff)))
 #define TIMER2_SENSOR_HIGH_BYTE  			((unsigned char) ((SENSOR_READING_PULSE_COUNT >> 8) & 0xff))
 
@@ -247,7 +247,7 @@ void InitialiseGPIO()
     PC_DDR_DDR7 = 1;    	//  Output pin.
     PC_CR1_C17 = 1;         //  Push-pull output.
     PC_CR2_C27 = 1;         //  10 MHz output.
-    PC_ODR_ODR7 = 0;        //  Turn pin off.
+    PC_ODR_ODR7 = 1;        //  Turn pin on.
     //
     //  Diagnostic output pins, one data, one clock.
     //
@@ -319,6 +319,8 @@ void InitialiseTimer2ForResetPulse()
 void InitialiseTimer2ForSensorReadings()
 {
     TIM2_PSCR = TIMER2_SENSOR_READING_PRESCALAR;
+    BitBang(TIMER2_SENSOR_HIGH_BYTE);
+    BitBang(TIMER2_SENSOR_LOW_BYTE);
     TIM2_ARRH = TIMER2_SENSOR_LOW_BYTE;
     TIM2_ARRL = TIMER2_SENSOR_HIGH_BYTE;
     TIM2_IER_UIE = 1;       			//  Turn on the interrupts.
@@ -428,10 +430,10 @@ __interrupt void ADC1_EOC_IRQHandler()
 //  of the interrupt pulse for the ESP8266 and secondly, determining how
 //  long we should read the wind speed sensor.
 //
-//  If PC_ODR_ODR7 is high on entering this method then the system has just
+//  If PC_ODR_ODR7 is low on entering this method then the system has just
 //  generated a interrupt pulse.
 //
-//  If PC_ODR_ODR7 is low then we are reading the wind speed so we should
+//  If PC_ODR_ODR7 is high then we are reading the wind speed so we should
 //	flag that the data is ready for reading and then start the interrupt pulse
 //	to the ESP8266.
 //
@@ -446,12 +448,12 @@ __interrupt void TIM2_UPD_OVF_IRQHandler(void)
     //
     //	Now work out what to do.
     //
-    if (PC_ODR_ODR7)
+    if (!PC_ODR_ODR7)
     {
     	//
     	//	Interrupt pulse.
     	//
-        PC_ODR_ODR7 = 0;            //  End the interrupt pulse.
+        PC_ODR_ODR7 = 1;            //  End the interrupt pulse.
         TIM2_CR1_CEN = 0;           //  Turn the timer off.
     }
     else
@@ -467,7 +469,7 @@ __interrupt void TIM2_UPD_OVF_IRQHandler(void)
         //
         InitialiseTimer2ForResetPulse();
         TIM2_CR1_CEN = 1;           //  Turn the timer back on.
-        PC_ODR_ODR7 = 1;
+        PC_ODR_ODR7 = 0;
     }
 }
 
@@ -515,6 +517,7 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
         	//
 	        _windSpeedPulseCount = 0;
 	        _dataReady = false;
+            BitBang(0x01);
             InitialiseTimer2ForSensorReadings();
             TIM2_CR1_CEN = 1;       //  Turn on Timer 2.
         }
