@@ -13,9 +13,19 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Support files">
+      <UniqueIdentifier>{f32592f9-9592-45fb-bf8c-7f399f7a8b97}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="WeatherStation.ino" />
+    <None Include="ClassDiagram.cd" />
+    <None Include="README.md">
+      <Filter>Support files</Filter>
+    </None>
+    <None Include="LICENSE">
+      <Filter>Support files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.WeatherStation.vsarduino.h">
@@ -39,9 +49,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WeatherSensors.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Secrets.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Debug.cpp">
