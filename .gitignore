@@ -28,6 +28,17 @@
 *.exe
 *.out
 *.app
+*.bin
+*.elf
+
+# IAR Files
+*.pdb
+*.pdb.browse
+*.pbi
+*.pbi.cout
+
+# VS Code files
+*.VC.db
 
 # Mac files
 .DS_Store
