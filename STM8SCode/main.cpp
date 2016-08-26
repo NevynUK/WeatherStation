@@ -55,7 +55,7 @@
 //  Now the timer values for the sensor reading (2 S = 2,000,000 uS).
 //
 #define SENSOR_READING_LENGTH       		2000000
-#define TIMER2_SENSOR_READING_PRESCALAR     0x05
+#define TIMER2_SENSOR_READING_PRESCALAR     0x0f
 #define SENSOR_READING_PULSE_COUNT  		(CLOCK_SPEED * SENSOR_READING_LENGTH / 32768)
 #define TIMER2_SENSOR_LOW_BYTE   			((unsigned char) ((SENSOR_READING_PULSE_COUNT & 0xff)))
 #define TIMER2_SENSOR_HIGH_BYTE  			((unsigned char) ((SENSOR_READING_PULSE_COUNT >> 8) & 0xff))
@@ -302,28 +302,15 @@ void InitialiseI2C()
 
 //--------------------------------------------------------------------------------
 //
-//  Setup Timer 2 to generate an interrupt for the reset pulse for the ESP8266.
+//  Set up Timer 1, channel 3 to output a single pulse lasting 240 uS.
 //
-void InitialiseTimer2ForResetPulse()
+void InitialiseTimer1()
 {
-    TIM2_PSCR = 0x00;       			//  Prescaler = 1.
-    TIM2_ARRH = TIMER2_RESET_HIGH_BYTE;
-    TIM2_ARRL = TIMER2_RESET_LOW_BYTE;
-    TIM2_IER_UIE = 1;       			//  Turn on the interrupts.
-}
-
-//--------------------------------------------------------------------------------
-//
-//  Setup Timer 2 to generate an interrupt for the sensor readings.
-//
-void InitialiseTimer2ForSensorReadings()
-{
-    TIM2_PSCR = TIMER2_SENSOR_READING_PRESCALAR;
-    BitBang(TIMER2_SENSOR_HIGH_BYTE);
-    BitBang(TIMER2_SENSOR_LOW_BYTE);
-    TIM2_ARRH = TIMER2_SENSOR_LOW_BYTE;
-    TIM2_ARRL = TIMER2_SENSOR_HIGH_BYTE;
-    TIM2_IER_UIE = 1;       			//  Turn on the interrupts.
+    TIM1_ARRH = 0x02;       //  Reload counter = 512
+    TIM1_ARRL = 0x00;
+    TIM1_PSCRH = 0xf4;      //  Prescalar = 62,500
+    TIM1_PSCRL = 0x24;
+    TIM1_IER_UIE = 1;       //  Turn interrupts on.
 }
 
 //--------------------------------------------------------------------------------
@@ -391,7 +378,7 @@ void ExecuteI2CCommand()
 
 //--------------------------------------------------------------------------------
 //
-//  ADC Conversion completed interrupt handler.
+//  ADC End Of Conversion (EOC) interrupt handler.
 //
 #pragma vector = ADC1_EOC_vector
 __interrupt void ADC1_EOC_IRQHandler()
@@ -400,7 +387,7 @@ __interrupt void ADC1_EOC_IRQHandler()
     unsigned short reading;
 
     ADC_CR1_ADON = 0;       //  Disable the ADC.
-    ADC_CSR_EOC = 0;    		// 	Indicate that ADC conversion is complete.
+    ADC_CSR_EOC = 0;    	// 	Indicate that ADC conversion is complete.
 
     low = ADC_DRL;			//	Extract the ADC reading.
     high = ADC_DRH;
@@ -418,59 +405,24 @@ __interrupt void ADC1_EOC_IRQHandler()
     }
     else
     {
-        _windDirectionReading = 1023 - reading;
+        _windDirectionReading = reading;
     }
 }
 
 //--------------------------------------------------------------------------------
 //
-//  Timer 2 Overflow handler.
+//  Timer 1 Overflow handler.
 //
-//  Timer 2 is used for two purposes, firstly controlling the length
-//  of the interrupt pulse for the ESP8266 and secondly, determining how
-//  long we should read the wind speed sensor.
+//  This handler deals with the 2 second timer pulse for the ESP8266 and also
+//  indicates if we should be taking wind speed readings.
 //
-//  If PC_ODR_ODR7 is low on entering this method then the system has just
-//  generated a interrupt pulse.
-//
-//  If PC_ODR_ODR7 is high then we are reading the wind speed so we should
-//	flag that the data is ready for reading and then start the interrupt pulse
-//	to the ESP8266.
-//
-#pragma vector = TIM2_OVR_UIF_vector
-__interrupt void TIM2_UPD_OVF_IRQHandler(void)
+#pragma vector = TIM1_OVR_UIF_vector
+__interrupt void TIM1_UPD_OVF_IRQHandler(void)
 {
-    //
-    //  Reset the interrupt otherwise it will fire again straight away
-    //	when this ISR exits.
-    //
-    TIM2_SR1_UIF = 0;
-    //
-    //	Now work out what to do.
-    //
-    if (!PC_ODR_ODR7)
-    {
-    	//
-    	//	Interrupt pulse.
-    	//
-        PC_ODR_ODR7 = 1;            //  End the interrupt pulse.
-        TIM2_CR1_CEN = 0;           //  Turn the timer off.
-    }
-    else
-    {
-        TIM2_CR1_CEN = 0;       	//  Turn the timer off temporarily.
-    	//
-    	//	Wind speed sensor has been read, the ADC will have completed
-    	//	long before the wind speed reading is ready.
-    	//
-        _dataReady = true;
-        //
-        //  Reset the timer duration for the ESP8266 interrupt.
-        //
-        InitialiseTimer2ForResetPulse();
-        TIM2_CR1_CEN = 1;           //  Turn the timer back on.
-        PC_ODR_ODR7 = 0;
-    }
+    _dataReady = true;
+    PC_ODR_ODR7 = 1;        //  Tell the ESP8266 that data is ready.
+    TIM1_CR1_CEN = 0;       //  Stop Timer 1.
+    TIM1_SR1_UIF = 0;       //  Reset the interrupt otherwise it will fire again straight away.
 }
 
 //--------------------------------------------------------------------------------
@@ -501,7 +453,8 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
     {
         //
         //  RTC has generated an interrupt, generate a short interrupt pulse to
-        //  tell the ESP8266 that it is time to read the sensors.
+        //  tell the ESP8266 that it is time to read the sensors on the falling
+        //	edge of the RTC pulse.
         //
         if (!(portDInput & MASK_RTC))
         {
@@ -518,8 +471,18 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
 	        _windSpeedPulseCount = 0;
 	        _dataReady = false;
             BitBang(0x01);
-            InitialiseTimer2ForSensorReadings();
-            TIM2_CR1_CEN = 1;       //  Turn on Timer 2.
+		    //
+    		//  Force Timer 1 to update without generating an interrupt.
+    		//  This is necessary to makes sure we start off with the correct
+    		//  count and prescalar values in the Timer 1 registers.
+    		//
+    		TIM1_CR1_URS = 1;
+    		TIM1_EGR_UG = 1;
+    		//
+    		//  Enable Timer 1
+    		//
+    		TIM1_CR1_CEN = 1;           //  Start Timer 1.
+            PC_ODR_ODR7 = 0;
         }
     }
     if (changedBits & MASK_RAIN_GAUGE)
@@ -527,8 +490,10 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
         //
         //  Increment on the rising edge only.
         //
+        BitBang(0x02);
         if (portDInput & MASK_RAIN_GAUGE)
         {
+        	BitBang(0x04);
             _rainGaugePulseCount++;
         }
     }
@@ -542,8 +507,10 @@ __interrupt void EXTI_PORTD_IRQHandler(void)
         //
         //  Increment on the rising edge only.
         //
-        if (portDInput & MASK_WIND_SPEED)
+        BitBang(0x03);
+        if ((portDInput & MASK_WIND_SPEED) && TIM1_CR1_CEN)
         {
+        	BitBang(0x05);
             _windSpeedPulseCount++;
         }
     }
@@ -638,7 +605,7 @@ int main()
     _lastPortDInput = PD_IDR;
     InitialiseI2C();
     InitialiseADC();
-    InitialiseTimer2ForResetPulse();
+    InitialiseTimer1();
     _resetCode = 0;
     __enable_interrupt();
     while (1)
