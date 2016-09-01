@@ -176,6 +176,15 @@ class WeatherSensors
         const uint8_t _windDriectionAnalogChannel = 1;
         WindDirectionLookup _windDirectionLookupTable[16];
         uint8_t _windDirectionLookupEntry;
+        const int I2CRainfallCounterMSB = 0;
+        const int I2CRainfallCounterLSB = 1;
+        const int I2CWindSpeedMSB = 2;
+        const int I2CWindSpeedLSB =  3;
+        const int I2CWindDirectionMSB = 4;
+        const int I2CWindDirectionLSB = 5;
+        const int I2CUVReadingMSB = 6;
+        const int I2CUVReadingLSB = 7;
+
         //
         //  Sensors attached to the STM8S
         //

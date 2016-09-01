@@ -319,6 +319,8 @@ void InitialiseTimer1()
 //
 void ExecuteI2CCommand()
 {
+    BitBang(0x06);
+    BitBang(_rxBuffer[0]);
     switch (_rxBuffer[0])
     {
         case I2C_RESET_STATE:
@@ -525,6 +527,7 @@ __interrupt void I2C_IRQHandler()
 {
     unsigned char reg;
 
+    BitBang(0x07);
     if (I2C_SR1_ADDR)
     {
         _txBufferPointer = 0;

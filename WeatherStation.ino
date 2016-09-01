@@ -27,7 +27,7 @@
 //  SOFTWARE.
 //  
 #include <Arduino.h>
-#include "DS3234.h"
+#include "DS3231.h"
 #include "Debug.h"
 #include "Secrets.h"
 #include <ESP8266WiFi.h>
@@ -47,11 +47,15 @@
 //
 //  Definitions used in the code for pins etc.
 //
-#define VERSION             "0.13"
+#define VERSION                 "0.17"
 //
-#define PIN_READ_SENSORS    11
-#define PIN_ONBOARD_LED     1
-#define SLEEP_PERIOD        0.5
+#define PIN_READ_SENSORS        11
+#define PIN_ONBOARD_LED         1
+#define PIN_WIND_SPEED          7
+#define PIN_RAINFALL            8
+#define PIN_GROUND_TEMPERATURE  9
+#define PIN_RTC_INTERRUPT       5
+#define SLEEP_PERIOD            0.5
 
 //
 //  Weather Sensor definitions.
@@ -61,7 +65,8 @@ WeatherSensors *_sensors;
 //
 //  DS3234 real time clock object.
 //
-DS3234RealTimeClock *rtc;
+DS3231 *rtc;
+#define MAX_NTP_RETRIES 10
 
 //
 //  We are logging to Phant and we need somewhere to store the client and keys.
@@ -268,6 +273,10 @@ void ReadAndPublishSensorData()
     Debugger::LogUltravioletData(_sensors->GetUltravioletLightStrength());
     Debugger::LogGroundTemperature(_sensors->GetGroundTemperatureReading());
     Debugger::LogRainfall(_sensors->GetRainfall(), _sensors->GetTotalRainfallToday());
+    //
+    //  Now post to the Internet.
+    //
+    //Debugger::DebugMessage("Posting to Internet.");
     //MQTT_connect();
     //CheckMQTTLoggingResult(_airPressureFeed.publish(_sensors->GetAirPressure() / 100), "Air Pressure");
     //CheckMQTTLoggingResult(_airTemperatureFeed.publish(_sensors->GetAirTemperature()), "Air Temperature");
@@ -278,16 +287,18 @@ void ReadAndPublishSensorData()
     //CheckMQTTLoggingResult(_uvLightFeed.publish(_sensors->GetUltravioletLightStrength()), "Ultraviolet Light");
     //CheckMQTTLoggingResult(_windSpeedFeed.publish(_sensors->GetWindSpeed()), "Wind Speed");
     //CheckMQTTLoggingResult(_windDirectionFeed.publish(_sensors->GetWindDirectionAsString()), "Wind Direction");
+    //Debugger::DebugMessage("Posting complete'");
     digitalWrite(PIN_ONBOARD_LED, LOW);
 }
 
 //
 //  Update the RTC with the time from the Internet.
 //
-void UpdateRTCWithInternetTime(DS3234RealTimeClock *rtc)
+void UpdateRTCWithInternetTime(DS3231 *rtc)
 {
     ntpClient *ntp;
     ts *dateTime;
+    int retries = 0;
 
     Debugger::DebugMessage("Getting Internet time and setting RTC.");
     ntp = ntpClient::getInstance("time.nist.gov", 0);
@@ -295,30 +306,36 @@ void UpdateRTCWithInternetTime(DS3234RealTimeClock *rtc)
     delay(1000);
     ntp->begin();
     time_t ntpTime = ntp->getTime();
-    while (year(ntpTime) == 1970)
+    while ((year(ntpTime) == 1970) && (retries < MAX_NTP_RETRIES))
     {
         delay(50);
         ntpTime = ntp->getTime();
+        retries++;
     }
-    dateTime = new(ts);
-    dateTime->hour = hour(ntpTime);
-    dateTime->minutes = minute(ntpTime);
-    dateTime->seconds = second(ntpTime);
-    dateTime->day = day(ntpTime);
-    dateTime->month = month(ntpTime);
-    dateTime->year = year(ntpTime);
-    dateTime->wday = weekday(ntpTime);
-    rtc->SetDateTime(dateTime);
+    if (retries < MAX_NTP_RETRIES)
+    {
+        dateTime = new(ts);
+        dateTime->hour = hour(ntpTime);
+        dateTime->minutes = minute(ntpTime);
+        dateTime->seconds = second(ntpTime);
+        dateTime->day = day(ntpTime);
+        dateTime->month = month(ntpTime);
+        dateTime->year = year(ntpTime);
+        dateTime->wday = weekday(ntpTime);
+        rtc->SetDateTime(dateTime);
+        Debugger::DebugMessage("Setting RTC to: " + rtc->DateTimeString(dateTime));
+        delay(1000);
+    }
     ntp->stop();
 }
 
 //
 //  Reset the alarm.
 //
-void SetAlarm(DS3234RealTimeClock *rtc, uint8_t period)
+void SetAlarm(DS3231 *rtc, uint8_t period)
 {
     ts *dateTime = rtc->GetDateTime();
-    Debugger::DebugMessage("Current time retrieved.");
+    Debugger::DebugMessage("Current time retrieved: " + rtc->DateTimeString(dateTime));
     uint8_t minutes = dateTime->minutes;
     //
     //  Note that the alarm we are using is When minutes and seconds match.
@@ -333,8 +350,8 @@ void SetAlarm(DS3234RealTimeClock *rtc, uint8_t period)
     dateTime->minutes = minutes;
     dateTime->seconds = 0;
     Debugger::DebugMessage("Setting alarm for " + rtc->DateTimeString(dateTime));
-    rtc->ClearInterrupt(DS3234RealTimeClock::Alarm1);
-    rtc->SetAlarm(DS3234RealTimeClock::Alarm1, dateTime, DS3234RealTimeClock::WhenMinutesSecondsMatch);
+    rtc->ClearInterrupt(DS3231::Alarm1Raised);
+    rtc->SetAlarm(DS3231::Alarm1Raised, dateTime, DS3231::WhenMinutesSecondsMatch);
     delete(dateTime);
 }
 
@@ -343,15 +360,17 @@ void SetAlarm(DS3234RealTimeClock *rtc, uint8_t period)
 //
 //  - Update the RTC from the Internet if necessary.
 //  - Reset the alarm
-//  - Read and pulish the data from the sensors.§
+//  - Read and pulish the data from the sensors.
 //
 void RTCAlarmHandler()
 {
+    Debugger::DebugMessage("--------------------------------------------------");
+    Debugger::DebugMessage("");
     Debugger::DebugMessage("Alarm interrupt raised.");
     //
     //  Reset the alarm.
     //
-    SetAlarm(rtc, 2);
+    SetAlarm(rtc, 1);
     //
     //  Now read the sensor data.
     //
@@ -366,10 +385,11 @@ void setup()
     Serial.begin(9600);
     Serial.println();
     Serial.println();
-    rtc = new DS3234RealTimeClock(6);
+    Wire.begin();
+    Wire.setClock(100000);
+    //
+    rtc = new DS3231();
     Debugger::AttachRTC(rtc);
-    //pinMode(PIN_ONBOARD_LED, OUTPUT);
-    //digitalWrite(PIN_ONBOARD_LED, HIGH);
     Debugger::DebugMessage("-----------------------------");
     Debugger::DebugMessage("Weather Station Starting (version " VERSION ", built: " __TIME__ " on " __DATE__ ")");
     //
@@ -377,9 +397,9 @@ void setup()
     //
     Debugger::DebugMessage("Connecting to default network");
     WiFi.begin();
-    while (WiFi.status() != WL_CONNECTED) 
+    while (WiFi.status() != WL_CONNECTED)
     {
-      delay(1000);
+        delay(1000);
     }
     Debugger::DebugMessage("WiFi connected, IP address: " + WiFi.localIP().toString());
     //
@@ -393,11 +413,11 @@ void setup()
     //  Get the current date and time from the RTC or a time server.
     //
     UpdateRTCWithInternetTime(rtc);
-    SetAlarm(rtc, 2);
+    SetAlarm(rtc, 1);
     _sensors = new WeatherSensors();
     _sensors->InitialiseSensors();
-    pinMode(PIN_ONBOARD_LED, INPUT);
-    attachInterrupt(digitalPinToInterrupt(PIN_ONBOARD_LED), RTCAlarmHandler, RISING);
+    pinMode(PIN_RTC_INTERRUPT, INPUT);
+    attachInterrupt(digitalPinToInterrupt(PIN_RTC_INTERRUPT), RTCAlarmHandler, FALLING);
 }
 
 //
@@ -405,7 +425,7 @@ void setup()
 //
 void loop()
 {
-    //digitalWrite(PIN_ONBOARD_LED, _ledOutput ? HIGH : LOW);
-    //_ledOutput = !_ledOutput;
+    digitalWrite(PIN_ONBOARD_LED, _ledOutput ? HIGH : LOW);
+    _ledOutput = !_ledOutput;
     delay(SLEEP_PERIOD * 1000);
 }

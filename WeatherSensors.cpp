@@ -60,6 +60,13 @@ WeatherSensors::WeatherSensors()
     _windDirectionLookupTable[13] = { 13639, 13991, 292.5, WestNorthWest, (char *) "West-North-West" };
     _windDirectionLookupTable[14] = { 14497, 15004, 315, NorthWest, (char *) "North-West" };
     _windDirectionLookupTable[15] = { 15491, 15978, 270, West, (char *) "West" };
+    //
+    //  Clear the sesnosr readings to 0.
+    //
+    _ultraviolet = 0;
+    _windSpeedPulseCount = 0;
+    _pluviometerPulseCount = 0;
+    _pluviometerPulseCountToday = 0;
 }
 
 //
@@ -94,10 +101,10 @@ void WeatherSensors::InitialiseSensors()
 //
 void WeatherSensors::ReadAllSensors()
 {
+    //ReadSTM8SSensors();
     //ReadGroundTemperatureSensor();
-    //ReadLuminositySensor();
-    //ReadTemperatureHumidityPressureSensor();
-    ReadSTM8SSensors();
+    ReadLuminositySensor();
+    ReadTemperatureHumidityPressureSensor();
     //ReadUltravioletLightSensor();
     //ReadRainfallSensor();
     //ReadWindSpeedSensor();
@@ -293,18 +300,34 @@ void WeatherSensors::ReadSTM8SSensors()
 {
     uint8_t buffer[I2CBufferSize];
 
-    Wire.begin();
-    Wire.setClock(100000);
     Wire.beginTransmission(STM8SAddress);
     Wire.write(I2CGetSensorData);
     Wire.endTransmission();
     Wire.requestFrom(STM8SAddress, I2CBufferSize);
+    bool allFF = true;
+    bool allAA = true;
     for (int index = 0; index < I2CBufferSize; index++)
     {
         buffer[index] = Wire.read();
+        allFF = (allFF && (0xff == buffer[index]));
+        allAA = (allAA && (0xaa == buffer[index]));
     }
-    //Wire.readBytes(buffer, I2CBufferSize);
     Debugger::DebugMessage("STM8S Sensor data", buffer, I2CBufferSize);
+    if (allFF)
+    {
+        Debugger::DebugMessage("There is a problem with the I2C readings from the STM8S.");
+    }
+    else if (allAA)
+    {
+        Debugger::DebugMessage("STM8S data is not ready.");
+    }
+    else
+    {
+        _windSpeedPulseCount = (buffer[I2CWindSpeedMSB] * 256) + buffer[I2CWindSpeedLSB];
+        _pluviometerPulseCount = (buffer[I2CRainfallCounterMSB] * 256) + buffer[I2CRainfallCounterLSB];
+        _pluviometerPulseCountToday = _pluviometerPulseCount;
+        _ultraviolet = (buffer[I2CUVReadingMSB] * 256) + buffer[I2CUVReadingLSB];
+    }
 }
 
 //******************************************************************************
@@ -513,6 +536,8 @@ void WeatherSensors::ReadRainfallSensor()
 //
 void WeatherSensors::ResetPluviometerPulseCounter()
 {
+    _pluviometerPulseCount = 0;
+    _pluviometerPulseCountToday = 0;
 }
 
 //

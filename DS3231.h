@@ -1,5 +1,5 @@
-//
-//  Header for the static debugger class.
+// 
+//  Header for the DS3131 class.
 //
 //  MIT License
 //  
@@ -22,30 +22,32 @@
 //  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //  SOFTWARE.
-//  
-#ifndef _DEBUG_h
-#define _DEBUG_h
+// 
+#ifndef _DS3231_H_
+#define _DS3231_H_
 
-#include "arduino.h"
-#include "DS3231.h"
+#include "DS323xTimerFunctions.h"
 
-class Debugger
+class DS3231 : public DS323xTimerFunctions
 {
-    private:
-        static DS3231 *rtc;
-        Debugger();
-
     public:
-        static void DebugMessage(String);
-        static void DebugMessage(String, uint8_t *, int);
-        static char *FloatToAscii(char *, double , int);
-        static void LogLuminosityData(double);
-        static void LogTemperatureHumidityAndPressureData(float, float, float);
-        static void LogUltravioletData(float);
-        static void LogGroundTemperature(float);
-        static void LogRainfall(float, float);
-        static void AttachRTC(DS3231 *r);
+        DS3231();
+        DS3231(uint8_t);
+        ~DS3231();
+
+    private:
+        //
+        //  Private variable to support this class.
+        //
+        uint8_t m_Address;
+        //
+        //  Private methods holding the chip specific implementation
+        //  of the communication protocol.
+        //
+        void BurstTransfer(uint8_t *, uint8_t);
+        void BurstTransfer(uint8_t *, uint8_t *, uint8_t);
+        uint8_t GetRegisterValue(const Registers);
+        void SetRegisterValue(const Registers reg, const uint8_t);
 };
 
 #endif
-

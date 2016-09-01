@@ -1,5 +1,5 @@
 // 
-//  Implement the methods for the DS3234RealTimeClock class.
+//  Implement the methods for the DS323xTimerFunctions class.
 //
 //  MIT License
 //  
@@ -23,101 +23,42 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //  SOFTWARE.
 //  
-#include "DS3234.h"
+#include "DS323xTimerFunctions.h"
 
 //
 //  Default constructor.
 //
 //  Prepare any resources needed by this class.
 //
-DS3234RealTimeClock::DS3234RealTimeClock()
+DS323xTimerFunctions::DS323xTimerFunctions()
 {
-    Initialise(6, MOSI, MISO, SCK);
-}
-
-//
-//  Make a clock object allowing the user t0 change the chip select pin.
-//
-DS3234RealTimeClock::DS3234RealTimeClock(const uint8_t chipSelect)
-{
-    Initialise(chipSelect, MOSI, MISO, SCK);
-}
-
-//
-//  Make a new DS3234 object allowing the user to define the serial communications pins.
-//
-DS3234RealTimeClock::DS3234RealTimeClock(const uint8_t chipSelect, const uint8_t mosi, const uint8_t miso, const uint8_t clock)
-{
-    Initialise(chipSelect, mosi, miso, clock);
-}
-
-//
-//  Initialise the DS3234 RTC module.
-//
-void DS3234RealTimeClock::Initialise(const uint8_t chipSelect, const uint8_t mosi, const uint8_t miso, const uint8_t clock)
-{
-    m_ChipSelect = chipSelect;
-    m_MOSI = mosi;
-    m_MISO = miso;
-    m_Clock = clock;
-    m_Port = new BitBang(m_ChipSelect, m_MOSI, m_MISO, m_Clock);
-    m_Port->ChipSelect(HIGH);
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(INTCON);
-    m_Port->ChipSelect(HIGH);
-    memset(m_Registers, 0, REGISTER_SIZE);
-    memset(m_SRAM, 0, MEMORY_SIZE);
 }
 
 //
 //  Destructor should tidy up any memory allocation etc.
 //
-DS3234RealTimeClock::~DS3234RealTimeClock()
+DS323xTimerFunctions::~DS323xTimerFunctions()
 {
-    delete(m_Port);
 }
 
 //
-//  Write a series of bytes to the chip but ignore data from the chip.
+//  Read all of the registers from the DS323x and store them in memory.
 //
-void DS3234RealTimeClock::BurstTransfer(uint8_t *dataToChip, const uint8_t size)
+void DS323xTimerFunctions::ReadAllRegisters()
 {
-    m_Port->ChipSelect(LOW);
-    for (int index = 0; index < size; index++)
-    {
-        m_Port->WriteRead(dataToChip[index]);
-    }
-    m_Port->ChipSelect(HIGH);
-}
-
-//
-//  Transfer a number of bytes in a burst mode.
-//
-void DS3234RealTimeClock::BurstTransfer(uint8_t *dataToChip, uint8_t *dataFromChip, const uint8_t size)
-{   
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(dataToChip, dataFromChip, DATE_TIME_REGISTERS_SIZE + 1);
-    m_Port->ChipSelect(HIGH);
-}
-
-//
-//  Read all of the registers from the DS3234 and stoge them in memory.
-//
-void DS3234RealTimeClock::ReadAllRegisters()
-{
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(0x00);
-    for (int index = 0; index < REGISTER_SIZE; index++)
-    {
-        m_Registers[index] = m_Port->WriteRead(0x00);
-    }
-    m_Port->ChipSelect(HIGH);
+    //m_Port->ChipSelect(LOW);
+    //m_Port->WriteRead(0x00);
+    //for (int index = 0; index < REGISTER_SIZE; index++)
+    //{
+    //    m_Registers[index] = m_Port->WriteRead(0x00);
+    //}
+    //m_Port->ChipSelect(HIGH);
 }
 
 //
 //  Dump the registers to the serial port.
 //
-void DS3234RealTimeClock::DumpRegisters(const uint8_t *registers)
+void DS323xTimerFunctions::DumpRegisters(const uint8_t *registers)
 {
     Serial.println("      0x00 0x01 0x02 0x03 0x04 0x05 0x06 0x07 0x08 0x09 0x0a 0x0b 0x0c 0x0d 0x0e 0x0f");
     for (int index = 0; index < REGISTER_SIZE; index++)
@@ -136,75 +77,11 @@ void DS3234RealTimeClock::DumpRegisters(const uint8_t *registers)
 }
 
 //
-//  Read the contents of the SRAM.
-//
-void DS3234RealTimeClock::ReadSRAM()
-{
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(WriteSRAMAddress);
-    m_Port->WriteRead(0x00);
-    m_Port->ChipSelect(HIGH);
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(ReadSRAMData);
-    for (int index = 0; index <= MEMORY_SIZE; index++)
-    {
-        m_SRAM[index] = m_Port->WriteRead(0x00);
-    }
-    m_Port->ChipSelect(HIGH);
-}
-
-//
-//  Dump the contents of the SRAM.
-//
-void DS3234RealTimeClock::DumpSRAM()
-{
-    Serial.println("      0x00 0x01 0x02 0x03 0x04 0x05 0x06 0x07 0x08 0x09 0x0a 0x0b 0x0c 0x0d 0x0e 0x0f");
-    for (int index = 0; index <= MEMORY_SIZE; index++)
-    {
-        if ((index % 0x10) == 0)
-        {
-            if (index > 0)
-            {
-                Serial.println("");
-            }
-            Serial.printf("0x%02x: ", index);
-        }
-        Serial.printf("0x%02x ", m_SRAM[index]);
-    }
-    Serial.println("");
-}
-
-//
-//  Get a value from a register.
-//
-uint8_t DS3234RealTimeClock::GetRegisterValue(const Registers reg)
-{
-    uint8_t result;
-
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(reg);
-    result = m_Port->WriteRead(0x00);
-    m_Port->ChipSelect(HIGH);
-    return(result);
-}
-
-//
-//  Set the byte value of the specified register.
-//
-void DS3234RealTimeClock::SetRegisterValue(const Registers reg, const uint8_t value)
-{
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(reg);
-    m_Port->WriteRead(value);
-    m_Port->ChipSelect(HIGH);
-}
-
-//
 //  Get the current control register.
 //
-uint8_t DS3234RealTimeClock::GetControlRegister()
+uint8_t DS323xTimerFunctions::GetControlRegister()
 {
-    return(GetRegisterValue(ReadControl));
+    return(GetRegisterValue(Control));
 }
 
 //
@@ -212,47 +89,47 @@ uint8_t DS3234RealTimeClock::GetControlRegister()
 //
 //  This method will mask off bits 0,1 and 2 as these are status bits.
 //
-void DS3234RealTimeClock::SetControlRegister(const uint8_t controlRegister)
+void DS323xTimerFunctions::SetControlRegister(const uint8_t controlRegister)
 {
-    SetRegisterValue(WriteControl, controlRegister);
+    SetRegisterValue(Control, controlRegister);
 }
 
 //
 //  Get the current control/status register.
 //
-uint8_t DS3234RealTimeClock::GetControlStatusRegister()
+uint8_t DS323xTimerFunctions::GetControlStatusRegister()
 {
-    return(GetRegisterValue(ReadControlStatus));
+    return(GetRegisterValue(ControlStatus));
 }
 
 //
 //  Set the control/status register.
 //
-void DS3234RealTimeClock::SetControlStatusRegister(const uint8_t controlRegister)
+void DS323xTimerFunctions::SetControlStatusRegister(const uint8_t controlRegister)
 {
-    SetRegisterValue(WriteControlStatus, controlRegister & 0xf8);
+    SetRegisterValue(ControlStatus, controlRegister & 0xf8);
 }
 
 //
 //  Get the value from the Aging Offset register.
 //
-uint8_t DS3234RealTimeClock::GetAgingOffset()
+uint8_t DS323xTimerFunctions::GetAgingOffset()
 {
-    return(GetRegisterValue(ReadAgingOffset));
+    return(GetRegisterValue(AgingOffset));
 }
 
 //
 //  Set the aging offset register.
 //
-void DS3234RealTimeClock::SetAgingOffset(uint8_t agingOffset)
+void DS323xTimerFunctions::SetAgingOffset(uint8_t agingOffset)
 {
-    SetRegisterValue(WriteAgingOffset, agingOffset);
+    SetRegisterValue(AgingOffset, agingOffset);
 }
 
 //
 //  Get the last temperature reading.
 //
-float DS3234RealTimeClock::GetTemperature()
+float DS323xTimerFunctions::GetTemperature()
 {
     uint8_t dataToChip[3], dataFromChip[3];
     uint16_t temperature;
@@ -266,10 +143,10 @@ float DS3234RealTimeClock::GetTemperature()
 }
 
 //
-//  Get the date and time from the DS3234 and return a ts structure containing
+//  Get the date and time from the DS323x and return a ts structure containing
 //  the decoded time.
 //
-ts *DS3234RealTimeClock::GetDateTime()
+ts *DS323xTimerFunctions::GetDateTime()
 {
     uint8_t dataToChip[DATE_TIME_REGISTERS_SIZE + 1], dataFromChip[DATE_TIME_REGISTERS_SIZE + 1];
     ts *result;
@@ -315,18 +192,17 @@ ts *DS3234RealTimeClock::GetDateTime()
 //
 //  Set the date and time.
 //
-void DS3234RealTimeClock::SetDateTime(ts *dateTime)
+void DS323xTimerFunctions::SetDateTime(ts *dateTime)
 {
-    uint8_t dataToChip[DATE_TIME_REGISTERS_SIZE + 1], dataFromChip[DATE_TIME_REGISTERS_SIZE + 1];
+    uint8_t dataToChip[DATE_TIME_REGISTERS_SIZE + 1];
 
     //
     //  The trick here is to send one more byte than necessary.  The first byte
     //  contains the address of the first register we want to read, in this case
-    //  0x80.  The subsequent bytes contain the encoded date and time.
+    //  0x00.  The subsequent bytes contain the encoded date and time.
     //
     memset(dataToChip, 0, DATE_TIME_REGISTERS_SIZE + 1);
-    memset(dataFromChip, 0, DATE_TIME_REGISTERS_SIZE + 1);
-    dataToChip[0] = 0x80;
+    dataToChip[0] = 0x00;
     dataToChip[1] = ConvertUint8ToBCD(dateTime->seconds);
     dataToChip[2] = ConvertUint8ToBCD(dateTime->minutes);
     dataToChip[3] = ConvertUint8ToBCD(dateTime->hour);           // Using 24 hour notation.
@@ -345,52 +221,52 @@ void DS3234RealTimeClock::SetDateTime(ts *dateTime)
     //
     //  Now we can set the time.
     //
-    BurstTransfer(dataToChip, dataFromChip, DATE_TIME_REGISTERS_SIZE + 1);
+    BurstTransfer(dataToChip, DATE_TIME_REGISTERS_SIZE + 1);
 }
 
 //
 //  Check the alarm status flags to work out which alarm has just triggered an interrupt.
 //
-DS3234RealTimeClock::Alarm DS3234RealTimeClock::WhichAlarm()
+DS323xTimerFunctions::Alarm DS323xTimerFunctions::WhichAlarm()
 {
     uint8_t controlStatusRegister;
 
     controlStatusRegister = GetControlStatusRegister();
     if ((controlStatusRegister & 0x01) && (controlStatusRegister & 0x02))
     {
-        return(DS3234RealTimeClock::Both);
+        return(DS323xTimerFunctions::BothAlarmsRaised);
     }
     if (controlStatusRegister & 0x01)
     {
-        return(DS3234RealTimeClock::Alarm1);
+        return(DS323xTimerFunctions::Alarm1Raised);
     }
     if (controlStatusRegister & 0x02)
     {
-        return(DS3234RealTimeClock::Alarm2);
+        return(DS323xTimerFunctions::Alarm2Raised);
     }
-    return(DS3234RealTimeClock::Unknown);
+    return(DS323xTimerFunctions::Unknown);
 }
 
 //
 //  Set the date and time of the specified alarm.
 //
-void DS3234RealTimeClock::SetAlarm(Alarm alarm, ts *time, AlarmType type)
+void DS323xTimerFunctions::SetAlarm(Alarm alarm, ts *time, AlarmType type)
 {
     uint8_t dataToChip[5];
     int element = 1;
     uint8_t amount;
     uint8_t a1 = 0, a2 = 0, a3 = 0, a4 = 0;
 
-    if (alarm == Alarm1)
+    if (alarm == Alarm1Raised)
     {
-        dataToChip[0] = WriteAlarm1;
+        dataToChip[0] = Alarm1;
         dataToChip[1] = ConvertUint8ToBCD(time->seconds);
         element = 2;
         amount = 6;
     }
     else
     {
-        dataToChip[0] = WriteAlarm2;
+        dataToChip[0] = Alarm2;
         amount = 5;
     }
     dataToChip[element++] = ConvertUint8ToBCD(time->minutes);
@@ -459,12 +335,12 @@ void DS3234RealTimeClock::SetAlarm(Alarm alarm, ts *time, AlarmType type)
 //
 //  Enable or disable the specified alarm.
 //
-void DS3234RealTimeClock::EnableDisableAlarm(const Alarm alarm, const bool enable)
+void DS323xTimerFunctions::EnableDisableAlarm(const Alarm alarm, const bool enable)
 {
     uint8_t controlRegister;
 
     controlRegister = GetControlRegister();
-    if (alarm == Alarm1)
+    if (alarm == Alarm1Raised)
     {
         if (enable)
         {
@@ -492,19 +368,19 @@ void DS3234RealTimeClock::EnableDisableAlarm(const Alarm alarm, const bool enabl
 //
 //  Process the interrupts generated by the alarms.
 //
-void DS3234RealTimeClock::InterruptHandler()
+void DS323xTimerFunctions::InterruptHandler()
 {
 }
 
 //
 //  Clear the interrupt flag for the specified alarm.
 //
-void DS3234RealTimeClock::ClearInterrupt(Alarm alarm)
+void DS323xTimerFunctions::ClearInterrupt(Alarm alarm)
 {
     uint8_t controlStatusRegister;
 
     controlStatusRegister = GetControlStatusRegister();
-    if (alarm == Alarm1)
+    if (alarm == Alarm1Raised)
     {
         controlStatusRegister &= ~A1F;
     }
@@ -518,7 +394,7 @@ void DS3234RealTimeClock::ClearInterrupt(Alarm alarm)
 //
 //  Convert a BCD number into an integer.
 //
-uint8_t DS3234RealTimeClock::ConvertBCDToUint8(const uint8_t value)
+uint8_t DS323xTimerFunctions::ConvertBCDToUint8(const uint8_t value)
 {
     uint8_t result;
 
@@ -531,7 +407,7 @@ uint8_t DS3234RealTimeClock::ConvertBCDToUint8(const uint8_t value)
 //
 //  Convert a number to BCD format.
 //
-uint8_t DS3234RealTimeClock::ConvertUint8ToBCD(const uint8_t value)
+uint8_t DS323xTimerFunctions::ConvertUint8ToBCD(const uint8_t value)
 {
     uint8_t result;
 
@@ -543,43 +419,10 @@ uint8_t DS3234RealTimeClock::ConvertUint8ToBCD(const uint8_t value)
 //
 //  Get the current date and time as a string.
 //
-String DS3234RealTimeClock::DateTimeString(ts *theTime)
+String DS323xTimerFunctions::DateTimeString(ts *theTime)
 {
     char buff[MAX_BUFFER_SIZE];
 
     sprintf(buff, "%02d-%02d-%04d %02d:%02d:%02d", theTime->day, theTime->month, theTime->year, theTime->hour, theTime->minutes, theTime->seconds);
     return(buff);
-}
-
-//
-//  Write a byte into the DS3234 SRAM.
-//
-void DS3234RealTimeClock::WriteToSRAM(const uint8_t address, const uint8_t data)
-{
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(WriteSRAMAddress);
-    m_Port->WriteRead(address);
-    m_Port->ChipSelect(HIGH);
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(WriteSRAMData);
-    m_Port->WriteRead(data);
-    m_Port->ChipSelect(HIGH);
-}
-
-//
-//  Read a byte from the SRAM.
-//
-uint8_t DS3234RealTimeClock::ReadFromSRAM(const uint8_t address)
-{
-    uint8_t result;
-
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(WriteSRAMAddress);
-    m_Port->WriteRead(address);
-    m_Port->ChipSelect(HIGH);
-    m_Port->ChipSelect(LOW);
-    m_Port->WriteRead(ReadSRAMData);
-    result = m_Port->WriteRead(0x00);
-    m_Port->ChipSelect(HIGH);
-    return(result);
 }

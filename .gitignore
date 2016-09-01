@@ -51,3 +51,5 @@ secrets.c
 Release/
 Debug/
 x64/
+.x64/
+__vm/

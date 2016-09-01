@@ -29,7 +29,7 @@
 //
 //  Initialise the static data members.
 //
-DS3234RealTimeClock *Debugger::rtc = NULL;
+DS3231 *Debugger::rtc = NULL;
 
 //
 //  Default constructor.
@@ -181,7 +181,7 @@ void Debugger::LogRainfall(float rainfall, float rainfallToday)
 //
 //  Store a reference to the real time clock for recording the current time on debug messages.
 //
-void Debugger::AttachRTC(DS3234RealTimeClock *r)
+void Debugger::AttachRTC(DS3231 *r)
 {
     rtc = r;
 }

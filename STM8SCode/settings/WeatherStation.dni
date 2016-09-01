@@ -9,7 +9,7 @@ TriggerName=main
 LimitSize=0
 ByteLimit=50
 [DebugChecksum]
-Checksum=336460035
+Checksum=-434227961
 [CodeCoverage]
 Enabled=_ 0
 [CallStack]
@@ -38,7 +38,7 @@ GraphEnabled=0
 ShowTimeLog=1
 ShowTimeSum=1
 [Breakpoints2]
-Bp0=_ 1 "STD_CODE2" "{$PROJ_DIR$\main.cpp}.211.5" 0 0 1 "" 0 ""
+Bp0=_ 1 "STD_CODE2" "{$PROJ_DIR$\main.cpp}.211.1" 0 0 1 "" 0 ""
 Count=1
 [Interrupts]
 Enabled=1
@@ -72,4 +72,4 @@ LogFile=_ ""
 Count=0
 SuppressDialog=0
 [DebuggerSettings]
-DisableInterruptsWhenStepping=0
+DisableInterruptsWhenStepping=1
