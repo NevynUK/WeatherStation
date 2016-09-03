@@ -43,23 +43,30 @@ WeatherSensors::WeatherSensors()
     //  Note that this table is order not in angles/wind direction but in terms of the
     //  mid points of the ADC readings found empirically.  This allows for easier
     //  searching of the table.
+    //
+    //  (char *) casts have been used in the wind direction names to stop a compiler
+    //  warning.
     //    
-    _windDirectionLookupTable[0] = { 0, 1112, 112.5, EastSouthEast, (char *) "East-South-East" };
-    _windDirectionLookupTable[1] = { 1262, 1412, 67.5, EastNorthEast, (char *) "East-North-East" };
-    _windDirectionLookupTable[2] = { 1489, 1567, 90, East, (char *) "East" };
-    _windDirectionLookupTable[3] = { 1851, 2136, 157.5, SouthSouthEast, (char *) "South-South-East" };
-    _windDirectionLookupTable[4] = { 2630, 3124, 135, SouthEast, (char *) "South-East" };
-    _windDirectionLookupTable[5] = { 3627, 4131, 202.5, SouthSouthWest, (char *) "South-South-West" };
-    _windDirectionLookupTable[6] = { 4359, 4587, 180, South, (char *) "South" };
-    _windDirectionLookupTable[7] = { 5726, 6866, 22.5, NorthNorthEast, (char *) "North-North-East" };
-    _windDirectionLookupTable[8] = { 7333, 7801, 45, NorthEast, (char *) "North-East" };
-    _windDirectionLookupTable[9] = { 9220, 10639, 225, SouthWest, (char *) "South-West" };
-    _windDirectionLookupTable[10] = { 10640, 10642, 247.5, WestSouthWest, (char *) "West-South-West" };
-    _windDirectionLookupTable[11] = { 11263, 11884, 337.5, NorthNorthWest, (char *) "North-North-West" };
-    _windDirectionLookupTable[12] = { 12585, 13287, 0, North, (char *) "North" };
-    _windDirectionLookupTable[13] = { 13639, 13991, 292.5, WestNorthWest, (char *) "West-North-West" };
-    _windDirectionLookupTable[14] = { 14497, 15004, 315, NorthWest, (char *) "North-West" };
-    _windDirectionLookupTable[15] = { 15491, 15978, 270, West, (char *) "West" };
+    _windDirectionLookupTable[0] = { 0, 68, 112.5, EastSouthEast, (char *) "East-South-East" };
+    _windDirectionLookupTable[1] = { 77, 87, 67.5, EastNorthEast, (char *) "East-North-East" };
+    _windDirectionLookupTable[2] = { 91, 96, 90, East, (char *) "East" };
+    _windDirectionLookupTable[3] = { 115, 135, 157.5, SouthSouthEast, (char *) "South-South-East" };
+    _windDirectionLookupTable[4] = { 165, 196, 135, SouthEast, (char *) "South-East" };
+    _windDirectionLookupTable[5] = { 227, 259, 202.5, SouthSouthWest, (char *) "South-South-West" };
+    _windDirectionLookupTable[6] = { 281, 304, 180, South, (char *) "South" };
+    _windDirectionLookupTable[7] = { 366, 429, 22.5, NorthNorthEast, (char *) "North-North-East" };
+    _windDirectionLookupTable[8] = { 456, 484, 45, NorthEast, (char *) "North-East" };
+    _windDirectionLookupTable[9] = { 553, 623, 247.5, WestSouthWest, (char *) "West-South-West" };
+    _windDirectionLookupTable[10] = { 640, 657, 225, SouthWest, (char *) "South-West" };
+    _windDirectionLookupTable[11] = { 693, 730, 337.5, NorthNorthWest, (char *) "North-North-West" };
+    _windDirectionLookupTable[12] = { 771, 812, 0, North, (char *) "North" };
+    _windDirectionLookupTable[13] = { 832, 852, 292.5, WestNorthWest, (char *) "West-North-West" };
+    _windDirectionLookupTable[14] = { 883, 914, 315, NorthWest, (char *) "North-West" };
+    _windDirectionLookupTable[15] = { 942, 970, 270, West, (char *) "West" };
+    //
+    //  Make A0 an input pin so that we can read the wind direction.
+    //
+    pinMode(A0, INPUT);
     //
     //  Clear the sesnosr readings to 0.
     //
@@ -102,13 +109,13 @@ void WeatherSensors::InitialiseSensors()
 void WeatherSensors::ReadAllSensors()
 {
     //ReadSTM8SSensors();
-    //ReadGroundTemperatureSensor();
+    ReadGroundTemperatureSensor();
     ReadLuminositySensor();
     ReadTemperatureHumidityPressureSensor();
     //ReadUltravioletLightSensor();
     //ReadRainfallSensor();
     //ReadWindSpeedSensor();
-    //ReadWindDirection();
+    ReadWindDirection();
 }
 
 //******************************************************************************
@@ -123,7 +130,7 @@ void WeatherSensors::SetupGroundTemperatureSensor()
     String message;
     char number[20];
 
-    _groundSensor = new OneWire(5);
+    _groundSensor = new OneWire(7);
 
     if (!_groundSensor->search(_groundTemperatureSensorAddress))
     {
@@ -627,26 +634,32 @@ void WeatherSensors::HandleWindSpeedInterrupt()
 //
 WeatherSensors::WindDirection WeatherSensors::ReadWindDirection()
 {
-    String message = "Wind direction: ";
+    int windDirection = analogRead(A0);
     char buffer[20];
-    //message += Debugger::FloatToAscii(buffer, windDirection * _voltsPerDivision, 4);
+    String message;
+
+    message = "Wind direction ADC reading: ";
+    message += itoa(windDirection, buffer, 10);
+    Debugger::DebugMessage(message);
+    //
+    message = "Wind direction (volts): ";
+    message += Debugger::FloatToAscii(buffer, windDirection * _voltsPerDivision, 4);
     message += "V";
     Debugger::DebugMessage(message);
-    message = "Wind direction reading: ";
-    //message += itoa(windDirection, buffer, 10);
-    Debugger::DebugMessage(message);
+    //
     _windDirectionLookupEntry = 15;
     for (int index = 0; index < 15; index++)
     {
-        //if ((windDirection > _windDirectionLookupTable[index].midPoint) && (windDirection <= _windDirectionLookupTable[index + 1].midPoint))
-        //{
-        //    _windDirectionLookupEntry = index;
-        //    break;
-        //}
+        if ((windDirection > _windDirectionLookupTable[index].midPoint) && (windDirection <= _windDirectionLookupTable[index + 1].midPoint))
+        {
+            _windDirectionLookupEntry = index;
+            break;
+        }
     }
     message = "Wind is blowing from ";
     message += _windDirectionLookupTable[_windDirectionLookupEntry].directionAsText;
     Debugger::DebugMessage(message);
+    return(_windDirectionLookupTable[_windDirectionLookupEntry].direction);
 }
 
 //

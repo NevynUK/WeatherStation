@@ -43,24 +43,36 @@
 #include <SPI.h>
 #include <OneWire.h>
 #include "WeatherSensors.h"
+#include <Ticker.h>
 
 //
 //  Definitions used in the code for pins etc.
 //
-#define VERSION                 "0.17"
+#define VERSION                 "0.18"
 //
 #define PIN_READ_SENSORS        11
 #define PIN_ONBOARD_LED         1
-#define PIN_WIND_SPEED          7
-#define PIN_RAINFALL            8
-#define PIN_GROUND_TEMPERATURE  9
+#define PIN_WIND_SPEED          9
+#define PIN_PLUVIOMETER         8
+#define PIN_GROUND_TEMPERATURE  7
 #define PIN_RTC_INTERRUPT       5
+#define PIN_WIND_DIRECTION      A0
 #define SLEEP_PERIOD            0.5
 
 //
 //  Weather Sensor definitions.
 //
 WeatherSensors *_sensors;
+
+//
+//  Local variables to deal with the analogue and digital sensors
+//  connected to the Oak.
+//
+unsigned int _pluviometerCountToday = 0;
+unsigned int _windSpeedCount = 0;
+unsigned short _windDirectionReading = 0;
+unsigned int _lastFiveSecondWindSpeedCount = 0;
+Ticker _fiveSecondTicker;
 
 //
 //  DS3234 real time clock object.
@@ -270,9 +282,20 @@ void ReadAndPublishSensorData()
     _sensors->ReadAllSensors();
     Debugger::LogLuminosityData(_sensors->GetLuminosityReading());
     Debugger::LogTemperatureHumidityAndPressureData(_sensors->GetAirTemperature(), _sensors->GetHumidity(), _sensors->GetAirPressure());
-    Debugger::LogUltravioletData(_sensors->GetUltravioletLightStrength());
+    //Debugger::LogUltravioletData(_sensors->GetUltravioletLightStrength());
     Debugger::LogGroundTemperature(_sensors->GetGroundTemperatureReading());
-    Debugger::LogRainfall(_sensors->GetRainfall(), _sensors->GetTotalRainfallToday());
+    Debugger::LogRainfall(0, _pluviometerCountToday * 0.2794);
+    //
+    String message;
+    char buffer[20];
+    message = "Wind speed pulse count: ";
+    message += itoa(_lastFiveSecondWindSpeedCount, buffer, 10);
+    Debugger::DebugMessage(message);
+    //
+    message = "Wind speed: ";
+    message += Debugger::FloatToAscii(buffer, (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2);
+    message += "mph";
+    Debugger::DebugMessage(message);
     //
     //  Now post to the Internet.
     //
@@ -378,6 +401,31 @@ void RTCAlarmHandler()
 }
 
 //
+//  Handle the wind speed interrupts.
+//
+void WindSpeedInterruptHandler()
+{
+    _windSpeedCount++;
+}
+
+//
+//  Hnadle the Ticker event every five seconds.
+//
+void FiveSecondTickerInterruptHandler()
+{
+    _lastFiveSecondWindSpeedCount = _windSpeedCount;
+    _windSpeedCount = 0;
+}
+
+//
+//  Simply increment the pluviometer counter for today.
+//
+void PluviometerInterruptHandler()
+{
+    _pluviometerCountToday++;
+}
+
+//
 //  Setup the application.
 //
 void setup()
@@ -418,6 +466,14 @@ void setup()
     _sensors->InitialiseSensors();
     pinMode(PIN_RTC_INTERRUPT, INPUT);
     attachInterrupt(digitalPinToInterrupt(PIN_RTC_INTERRUPT), RTCAlarmHandler, FALLING);
+    pinMode(PIN_WIND_SPEED, INPUT);
+    attachInterrupt(digitalPinToInterrupt(PIN_WIND_SPEED), WindSpeedInterruptHandler, FALLING);
+    pinMode(PIN_PLUVIOMETER, INPUT);
+    attachInterrupt(digitalPinToInterrupt(PIN_PLUVIOMETER), PluviometerInterruptHandler, FALLING);
+    pinMode(PIN_WIND_DIRECTION, INPUT);
+    pinMode(PIN_ONBOARD_LED, OUTPUT);
+    //
+    _fiveSecondTicker.attach(5.0, FiveSecondTickerInterruptHandler);
 }
 
 //
@@ -425,7 +481,7 @@ void setup()
 //
 void loop()
 {
-    digitalWrite(PIN_ONBOARD_LED, _ledOutput ? HIGH : LOW);
+    digitalWrite(PIN_ONBOARD_LED, _ledOutput ? 1 : 0);
     _ledOutput = !_ledOutput;
     delay(SLEEP_PERIOD * 1000);
 }

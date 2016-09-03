@@ -124,7 +124,7 @@ class WeatherSensors
         const float _referenceVoltage = 3.3;
         const float _uvOffset = 1.025;              // Base reading from the sensor (observation).
         const uint8_t _ultravioletLightChannel = 0; // ADC channel connected to the UV sensor.
-        const float _voltsPerDivision = 0.0001875;  // Volts per division in the ADS1115 ADC.
+        const float _voltsPerDivision = (_referenceVoltage / _maximumAnalogValue);
         //
         //  STM8S I2C Address and commands.
         //
