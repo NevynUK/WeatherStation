@@ -36,7 +36,7 @@
 #include <NtpClientLib.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include <Adafruit_MQTT.h>
+#include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
 #include <SparkFunTSL2561.h>
 #include <Wire.h>
@@ -48,16 +48,14 @@
 //
 //  Definitions used in the code for pins etc.
 //
-#define VERSION                 "0.18"
+#define VERSION                 "0.19"
 //
-#define PIN_READ_SENSORS        11
 #define PIN_ONBOARD_LED         1
 #define PIN_WIND_SPEED          9
 #define PIN_PLUVIOMETER         8
 #define PIN_GROUND_TEMPERATURE  7
 #define PIN_RTC_INTERRUPT       5
 #define PIN_WIND_DIRECTION      A0
-#define SLEEP_PERIOD            0.5
 
 //
 //  Weather Sensor definitions.
@@ -75,6 +73,12 @@ unsigned int _lastFiveSecondWindSpeedCount = 0;
 Ticker _fiveSecondTicker;
 
 //
+//  Indicate if we should read the sesnosrs.
+//
+bool _readSensors = false;
+unsigned int _readingNumber = 0;
+
+//
 //  DS3234 real time clock object.
 //
 DS3231 *rtc;
@@ -84,7 +88,7 @@ DS3231 *rtc;
 //  We are logging to Phant and we need somewhere to store the client and keys.
 //
 #define PHANT_DOMAIN        "data.sparkfun.com"
-#define PHANT_PAGE          "/input/YGY7EV1WwpToK65bNa56"
+#define PHANT_PAGE          "/input/zDA9M8dQlahOqo4bx5Dd"
 #define PHANT_PORT          80
 
 //
@@ -134,13 +138,6 @@ const char AIR_PRESSURE_FEED[] PROGMEM = AIO_USERNAME "/feeds/airpressure";
 Adafruit_MQTT_Publish _airPressureFeed = Adafruit_MQTT_Publish(&mqtt, AIR_PRESSURE_FEED);
 
 //
-//  UDP Debugging definitions.
-//
-#define UDP_DEBUG_PORT      5000
-WiFiUDP _udpDebug;
-IPAddress _udpDestination;
-
-//
 //  Used for debugging, determine the output state of the onboard LED.
 //
 bool _ledOutput = false;
@@ -153,31 +150,22 @@ void PostDataToPhant()
     char number[20];
     
     String url = PHANT_PAGE "?private_key=" PHANT_PRIVATE_KEY;
-    url += "&When=";
-    ts *currentDateTime = rtc->GetDateTime();
-    String dateTime = rtc->DateTimeString(currentDateTime);
-    dateTime.replace(" ", "T");
-    url += dateTime;
-    delete(currentDateTime);
     url += "&airpressure=";
     url += Debugger::FloatToAscii(number, _sensors->GetAirPressure() / 100, 0);
-    url += "&groundmoisture=0";
     url += "&groundtemperature=";
     url += Debugger::FloatToAscii(number, _sensors->GetGroundTemperatureReading(), 2);
-    url += "&temperature=";
+    url += "&airtemperature=";
     url += Debugger::FloatToAscii(number, _sensors->GetAirTemperature(), 2);
     url += "&humidity=";
     url += Debugger::FloatToAscii(number, _sensors->GetHumidity(), 2);
     url += "&luminosity=";
     url += Debugger::FloatToAscii(number, _sensors->GetLuminosityReading(), 2);
     url += "&rainfall=";
-    url += Debugger::FloatToAscii(number, _sensors->GetRainfall(), 2);
-    url += "&ultravioletlight=";
-    url += Debugger::FloatToAscii(number, _sensors->GetUltravioletLightStrength(), 2);
-    url += "&winddirection=0";
+    url += Debugger::FloatToAscii(number, _pluviometerCountToday, 2);
+    url += "&winddirection=";
+    url += _sensors->GetWindDirectionAsString();
     url += "&windspeed=";
-    url += Debugger::FloatToAscii(number, _sensors->GetWindSpeed(), 2);
-    _udpDebug.println(url);
+    url += Debugger::FloatToAscii(number, (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2);
     //
     //  Send the data to Phant (Sparkfun's data logging service).
     //
@@ -273,48 +261,6 @@ void CheckMQTTLoggingResult(bool result, String readingType)
 }
 
 //
-//  Read the sensors and publish the data.
-//
-void ReadAndPublishSensorData()
-{
-    digitalWrite(PIN_ONBOARD_LED, HIGH);
-    Debugger::DebugMessage("Reading sensor data.");
-    _sensors->ReadAllSensors();
-    Debugger::LogLuminosityData(_sensors->GetLuminosityReading());
-    Debugger::LogTemperatureHumidityAndPressureData(_sensors->GetAirTemperature(), _sensors->GetHumidity(), _sensors->GetAirPressure());
-    //Debugger::LogUltravioletData(_sensors->GetUltravioletLightStrength());
-    Debugger::LogGroundTemperature(_sensors->GetGroundTemperatureReading());
-    Debugger::LogRainfall(0, _pluviometerCountToday * 0.2794);
-    //
-    String message;
-    char buffer[20];
-    message = "Wind speed pulse count: ";
-    message += itoa(_lastFiveSecondWindSpeedCount, buffer, 10);
-    Debugger::DebugMessage(message);
-    //
-    message = "Wind speed: ";
-    message += Debugger::FloatToAscii(buffer, (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2);
-    message += "mph";
-    Debugger::DebugMessage(message);
-    //
-    //  Now post to the Internet.
-    //
-    //Debugger::DebugMessage("Posting to Internet.");
-    //MQTT_connect();
-    //CheckMQTTLoggingResult(_airPressureFeed.publish(_sensors->GetAirPressure() / 100), "Air Pressure");
-    //CheckMQTTLoggingResult(_airTemperatureFeed.publish(_sensors->GetAirTemperature()), "Air Temperature");
-    //CheckMQTTLoggingResult(_daylightFeed.publish(_sensors->GetLuminosityReading()), "Daylight");
-    //CheckMQTTLoggingResult(_groundTemperatureFeed.publish(_sensors->GetGroundTemperatureReading()), "Ground Temperature");
-    //CheckMQTTLoggingResult(_humidityFeed.publish(_sensors->GetHumidity()), "Humidity");
-    //CheckMQTTLoggingResult(_rainFallFeed.publish(_sensors->GetTotalRainfallToday()), "Rainfall");
-    //CheckMQTTLoggingResult(_uvLightFeed.publish(_sensors->GetUltravioletLightStrength()), "Ultraviolet Light");
-    //CheckMQTTLoggingResult(_windSpeedFeed.publish(_sensors->GetWindSpeed()), "Wind Speed");
-    //CheckMQTTLoggingResult(_windDirectionFeed.publish(_sensors->GetWindDirectionAsString()), "Wind Direction");
-    //Debugger::DebugMessage("Posting complete'");
-    digitalWrite(PIN_ONBOARD_LED, LOW);
-}
-
-//
 //  Update the RTC with the time from the Internet.
 //
 void UpdateRTCWithInternetTime(DS3231 *rtc)
@@ -349,6 +295,10 @@ void UpdateRTCWithInternetTime(DS3231 *rtc)
         Debugger::DebugMessage("Setting RTC to: " + rtc->DateTimeString(dateTime));
         delay(1000);
     }
+    else
+    {
+        Debugger::DebugMessage("NTP retry count exceeded.");
+    }
     ntp->stop();
 }
 
@@ -378,6 +328,50 @@ void SetAlarm(DS3231 *rtc, uint8_t period)
     delete(dateTime);
 }
 
+void ReadAndPublishData()
+{
+    char _buffer[20];
+    String _message;
+
+    digitalWrite(PIN_ONBOARD_LED, HIGH);
+    _message = "Reading sensor data (";
+    _message += itoa(_readingNumber, _buffer, 10);
+    _message += ")";
+    Debugger::DebugMessage(_message);
+    _sensors->ReadAllSensors();
+    Debugger::LogLuminosityData(_sensors->GetLuminosityReading());
+    Debugger::LogTemperatureHumidityAndPressureData(_sensors->GetAirTemperature(), _sensors->GetHumidity(), _sensors->GetAirPressure());
+    Debugger::LogGroundTemperature(_sensors->GetGroundTemperatureReading());
+    //Debugger::LogUltravioletData(_sensors->GetUltravioletLightStrength());
+    Debugger::LogRainfall(0, _pluviometerCountToday * 0.2794);
+    //
+    _message = "Wind speed pulse count: ";
+    _message += itoa(_lastFiveSecondWindSpeedCount, _buffer, 10);
+    Debugger::DebugMessage(_message);
+    //
+    _message = "Wind speed: ";
+    _message += Debugger::FloatToAscii(_buffer, (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2);
+    _message += "mph";
+    Debugger::DebugMessage(_message);
+    //
+    //  Now post to the Internet.
+    //
+    Debugger::DebugMessage("Posting to Internet.");
+    PostDataToPhant();
+    //MQTT_connect();
+    //CheckMQTTLoggingResult(_airPressureFeed.publish(_sensors->GetAirPressure() / 100), "Air Pressure");
+    //CheckMQTTLoggingResult(_airTemperatureFeed.publish(_sensors->GetAirTemperature()), "Air Temperature");
+    //CheckMQTTLoggingResult(_daylightFeed.publish(_sensors->GetLuminosityReading()), "Daylight");
+    //CheckMQTTLoggingResult(_groundTemperatureFeed.publish(_sensors->GetGroundTemperatureReading()), "Ground Temperature");
+    //CheckMQTTLoggingResult(_humidityFeed.publish(_sensors->GetHumidity()), "Humidity");
+    //CheckMQTTLoggingResult(_rainFallFeed.publish(_sensors->GetTotalRainfallToday()), "Rainfall");
+    //CheckMQTTLoggingResult(_windSpeedFeed.publish(_sensors->GetWindSpeed()), "Wind Speed");
+    //CheckMQTTLoggingResult(_windDirectionFeed.publish(_sensors->GetWindDirectionAsString()), "Wind Direction");
+    //CheckMQTTLoggingResult(_uvLightFeed.publish(_sensors->GetUltravioletLightStrength()), "Ultraviolet Light");
+    //Debugger::DebugMessage("Posting complete'");
+    digitalWrite(PIN_ONBOARD_LED, LOW);
+}
+
 //
 //  Handle the RTC interrupt.
 //
@@ -395,9 +389,9 @@ void RTCAlarmHandler()
     //
     SetAlarm(rtc, 1);
     //
-    //  Now read the sensor data.
+    //  Indicate that the sensors should be read.
     //
-    ReadAndPublishSensorData();
+    _readSensors = true;
 }
 
 //
@@ -451,13 +445,6 @@ void setup()
     }
     Debugger::DebugMessage("WiFi connected, IP address: " + WiFi.localIP().toString());
     //
-    //  Complete the network set up with the UDP port being used for debugging.
-    //
-    _udpDestination = WiFi.localIP();
-    _udpDestination[3] = 106;
-    _udpDebug.begin(UDP_DEBUG_PORT);
-    Debugger::DebugMessage("UDP debugging initialised.");
-    //
     //  Get the current date and time from the RTC or a time server.
     //
     UpdateRTCWithInternetTime(rtc);
@@ -481,7 +468,13 @@ void setup()
 //
 void loop()
 {
+    if (_readSensors)
+    {
+        _readSensors = false;
+        _readingNumber++;
+        ReadAndPublishData();
+    }
     digitalWrite(PIN_ONBOARD_LED, _ledOutput ? 1 : 0);
     _ledOutput = !_ledOutput;
-    delay(SLEEP_PERIOD * 1000);
+    delay(1000);
 }
