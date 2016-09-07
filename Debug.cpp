@@ -36,7 +36,6 @@ DS3231 *Debugger::rtc = NULL;
 //
 Debugger::Debugger()
 {
-    //rtc = NULL;
 }
 
 //
@@ -44,15 +43,13 @@ Debugger::Debugger()
 //
 void Debugger::DebugMessage(String message)
 {
-    //    UDPDebug.beginPacket(udpDestination, UDP_DEBUG_PORT);
-    //    UDPDebug.write(message.c_str());
-    //    UDPDebug.endPacket();
     if (rtc != NULL)
     {
         Serial.print(rtc->DateTimeString(rtc->GetDateTime()));
         Serial.print(": ");
     }
     Serial.println(message);
+    yield();
 }
 
 //
@@ -76,6 +73,35 @@ void Debugger::DebugMessage(String message, uint8_t *byteArray, int byteArraySiz
     messageAndData += "]";
     DebugMessage(messageAndData);
 }
+
+//
+//  Output a floating point value with a prefix and suffix wrapped around the value.
+//
+void Debugger::DebugMessage(String prefix, float value, unsigned int precision, String suffix)
+{
+    String message;
+    char number[30];
+
+    message = prefix + " ";
+    message += FloatToAscii(number, value, precision);
+    message += " " + suffix;
+    DebugMessage(message);
+}
+
+//
+//  Output an unsigned integer value with a prefix and suffix wrapped around the value.
+//
+void Debugger::DebugMessage(String prefix, unsigned int value, int radix, String suffix)
+{
+    String message;
+    char number[30];
+
+    message = prefix + " ";
+    message += utoa(value, number, radix);
+    message += " " + suffix;
+    DebugMessage(message);
+}
+
 //
 //  Convert a float to a string for debugging.
 //
@@ -97,85 +123,6 @@ char *Debugger::FloatToAscii(char *buffer, double number, int precision)
         itoa(decimal, buffer, 10);
     }
     return ret;
-}
-
-//
-//  Log the luminosity data to the debug stream.
-//
-void Debugger::LogLuminosityData(double lux)
-{
-    char number[20];
-    String message;
-
-    message = "Lux: ";
-    message += FloatToAscii(number, lux, 2);
-    DebugMessage(message);
-}
-
-//
-//  Log the data from the temperature, pressure and humidity sensor.
-//
-void Debugger::LogTemperatureHumidityAndPressureData(float temperature, float humidity, float pressure)
-{
-    char number[20];
-    String message;
-
-    message = "Temperature: ";
-    message += FloatToAscii(number, temperature, 2);
-    message += " C";
-    DebugMessage(message);
-    message = "Humidity: ";
-    message += FloatToAscii(number, humidity, 2);
-    message += "%";
-    DebugMessage(message);
-    message = "Pressure: ";
-    message += FloatToAscii(number, pressure / 100, 0);
-    message += " hPa";
-    DebugMessage(message);
-}
-
-//
-//  Log the reading from the ultraviolet light sensor.
-//
-void Debugger::LogUltravioletData(float uv)
-{
-    char num[20];
-    String message;
-
-    message = "Ultraviolet light: ";
-    message += itoa(uv, num, 10);
-    DebugMessage(message);
-}
-
-//
-//  Log the ground temperature.
-//
-void Debugger::LogGroundTemperature(float temperature)
-{
-    String message;
-    char number[20];
-
-    message = "Ground temperature: ";
-    message += FloatToAscii(number, temperature, 2);
-    DebugMessage(message);
-}
-
-//
-//  Log the rainfall and the total rainfall today.
-//
-void Debugger::LogRainfall(float rainfall, float rainfallToday)
-{
-    String message;
-    char number[20];
-
-    message = "Last rainfall: ";
-    message += FloatToAscii(number, rainfall, 2);
-    message += "mm";
-    DebugMessage(message);
-    message = "Total rainfall today: ";
-    message += FloatToAscii(number, rainfallToday, 2);
-    message += "mm";
-    DebugMessage(message);
 }
 
 //

@@ -97,8 +97,8 @@ void WeatherSensors::InitialiseSensors()
     SetupGroundTemperatureSensor();
     SetupLuminositySensor();
     SetupTemperatureHumidityPressureSensor();
-    SetupRainfallSensor();
-    SeupWindSpeedSensor();
+    //SetupRainfallSensor();
+    //SeupWindSpeedSensor();
 }
 
 //
@@ -115,7 +115,7 @@ void WeatherSensors::ReadAllSensors()
     //ReadUltravioletLightSensor();
     //ReadRainfallSensor();
     //ReadWindSpeedSensor();
-    ReadWindDirection();
+    //ReadWindDirection();
 }
 
 //******************************************************************************

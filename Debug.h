@@ -29,6 +29,9 @@
 #include "arduino.h"
 #include "DS3231.h"
 
+//
+//  Implement some basic debug messaging facilities.
+//
 class Debugger
 {
     private:
@@ -38,12 +41,9 @@ class Debugger
     public:
         static void DebugMessage(String);
         static void DebugMessage(String, uint8_t *, int);
+        static void DebugMessage(String, float, unsigned int, String);
+        static void DebugMessage(String, unsigned int, int, String);
         static char *FloatToAscii(char *, double , int);
-        static void LogLuminosityData(double);
-        static void LogTemperatureHumidityAndPressureData(float, float, float);
-        static void LogUltravioletData(float);
-        static void LogGroundTemperature(float);
-        static void LogRainfall(float, float);
         static void AttachRTC(DS3231 *r);
 };
 

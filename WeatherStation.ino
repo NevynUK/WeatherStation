@@ -221,29 +221,17 @@ void SetAlarm(DS3231 *rtc, uint8_t period)
 //
 void ReadAndPublishData()
 {
-    char buffer[20];
-    String message;
-
     digitalWrite(PIN_ONBOARD_LED, HIGH);
-    message = "Reading sensor data (";
-    message += itoa(_readingNumber, buffer, 10);
-    message += ")";
-    Debugger::DebugMessage(message);
+    Debugger::DebugMessage("Reading sensor data (", _readingNumber, 0, ")");
     _sensors->ReadAllSensors();
-    Debugger::LogLuminosityData(_sensors->GetLuminosityReading());
-    Debugger::LogTemperatureHumidityAndPressureData(_sensors->GetAirTemperature(), _sensors->GetHumidity(), _sensors->GetAirPressure());
-    Debugger::LogGroundTemperature(_sensors->GetGroundTemperatureReading());
-    //Debugger::LogUltravioletData(_sensors->GetUltravioletLightStrength());
-    Debugger::LogRainfall(0, _pluviometerCountToday * 0.2794);
-    //
-    message = "Wind speed pulse count: ";
-    message += itoa(_lastFiveSecondWindSpeedCount, buffer, 10);
-    Debugger::DebugMessage(message);
-    //
-    message = "Wind speed: ";
-    message += Debugger::FloatToAscii(buffer, (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2);
-    message += "mph";
-    Debugger::DebugMessage(message);
+    Debugger::DebugMessage("Luminosity:", _sensors->GetLuminosityReading(), 2, "lumens");
+    Debugger::DebugMessage("Air temperature:", _sensors->GetAirTemperature(), 2u, "C");
+    Debugger::DebugMessage("Humidity:", _sensors->GetHumidity(), 2u, "%");
+    Debugger::DebugMessage("Humidity:", _sensors->GetAirPressure(), 2u, "hPa");
+    Debugger::DebugMessage("Ground temperature:", _sensors->GetGroundTemperatureReading(), 2u, "C");
+    Debugger::DebugMessage("Rainfall today:", _pluviometerCountToday * 0.2794, 2u, "mm");
+    Debugger::DebugMessage("Wind speed pulse count: ", _lastFiveSecondWindSpeedCount, 2, "");
+    Debugger::DebugMessage("Wind speed: ", (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2u, "mph");
     //
     //  Now post to the Internet.
     //
@@ -257,7 +245,8 @@ void ReadAndPublishData()
 //
 //  - Update the RTC from the Internet if necessary.
 //  - Reset the alarm
-//  - Read and pulish the data from the sensors.
+//  - Indicate that the sensors need reading if necessary (this is an 
+//    ISR and we need to get out of here as soon as possible)
 //
 void RTCAlarmHandler()
 {
