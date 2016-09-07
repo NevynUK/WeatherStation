@@ -115,7 +115,7 @@ void WeatherSensors::ReadAllSensors()
     //ReadUltravioletLightSensor();
     //ReadRainfallSensor();
     //ReadWindSpeedSensor();
-    //ReadWindDirection();
+    ReadWindDirection();
 }
 
 //******************************************************************************
@@ -635,18 +635,9 @@ void WeatherSensors::HandleWindSpeedInterrupt()
 WeatherSensors::WindDirection WeatherSensors::ReadWindDirection()
 {
     int windDirection = analogRead(A0);
-    char buffer[20];
-    String message;
 
-    message = "Wind direction ADC reading: ";
-    message += itoa(windDirection, buffer, 10);
-    Debugger::DebugMessage(message);
-    //
-    message = "Wind direction (volts): ";
-    message += Debugger::FloatToAscii(buffer, windDirection * _voltsPerDivision, 4);
-    message += "V";
-    Debugger::DebugMessage(message);
-    //
+    Debugger::DebugMessage("Wind direction ADC reading: ", windDirection, 10, "");
+    Debugger::DebugMessage("Wind direction (volts): ", windDirection * _voltsPerDivision, 4u, "V");
     _windDirectionLookupEntry = 15;
     for (int index = 0; index < 15; index++)
     {
@@ -656,9 +647,7 @@ WeatherSensors::WindDirection WeatherSensors::ReadWindDirection()
             break;
         }
     }
-    message = "Wind is blowing from ";
-    message += _windDirectionLookupTable[_windDirectionLookupEntry].directionAsText;
-    Debugger::DebugMessage(message);
+    Debugger::DebugMessage("Wind is blowing from " + String(_windDirectionLookupTable[_windDirectionLookupEntry].directionAsText));
     return(_windDirectionLookupTable[_windDirectionLookupEntry].direction);
 }
 

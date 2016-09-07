@@ -64,16 +64,16 @@ WeatherSensors *_sensors;
 //  Local variables to deal with the analogue and digital sensors
 //  connected to the Oak.
 //
-unsigned int _pluviometerCountToday = 0;
-unsigned int _windSpeedCount = 0;
-unsigned short _windDirectionReading = 0;
-unsigned int _lastFiveSecondWindSpeedCount = 0;
+volatile unsigned int _pluviometerCountToday = 0;
+volatile unsigned int _windSpeedCount = 0;
+volatile unsigned short _windDirectionReading = 0;
+volatile unsigned int _lastFiveSecondWindSpeedCount = 0;
 Ticker _fiveSecondTicker;
 
 //
 //  Indicate if we should read the sesnosrs.
 //
-bool _readSensors = false;
+volatile bool _readSensors = false;
 unsigned int _readingNumber = 0;
 
 //
@@ -222,16 +222,16 @@ void SetAlarm(DS3231 *rtc, uint8_t period)
 void ReadAndPublishData()
 {
     digitalWrite(PIN_ONBOARD_LED, HIGH);
-    Debugger::DebugMessage("Reading sensor data (", _readingNumber, 0, ")");
+    Debugger::DebugMessage("Reading sensor data (", _readingNumber, 10, ")");
     _sensors->ReadAllSensors();
-    Debugger::DebugMessage("Luminosity:", _sensors->GetLuminosityReading(), 2, "lumens");
+    Debugger::DebugMessage("Luminosity:", (float) _sensors->GetLuminosityReading(), 2u, "lumens");
     Debugger::DebugMessage("Air temperature:", _sensors->GetAirTemperature(), 2u, "C");
     Debugger::DebugMessage("Humidity:", _sensors->GetHumidity(), 2u, "%");
-    Debugger::DebugMessage("Humidity:", _sensors->GetAirPressure(), 2u, "hPa");
+    Debugger::DebugMessage("Humidity:", _sensors->GetAirPressure() / 100, 2u, "hPa");
     Debugger::DebugMessage("Ground temperature:", _sensors->GetGroundTemperatureReading(), 2u, "C");
     Debugger::DebugMessage("Rainfall today:", _pluviometerCountToday * 0.2794, 2u, "mm");
-    Debugger::DebugMessage("Wind speed pulse count: ", _lastFiveSecondWindSpeedCount, 2, "");
-    Debugger::DebugMessage("Wind speed: ", (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2u, "mph");
+    Debugger::DebugMessage("Wind speed pulse count:", _lastFiveSecondWindSpeedCount, 10, "");
+    Debugger::DebugMessage("Wind speed:", (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2u, "mph");
     //
     //  Now post to the Internet.
     //
@@ -261,6 +261,7 @@ void RTCAlarmHandler()
     //  Indicate that the sensors should be read.
     //
     _readSensors = true;
+    Debugger::DebugMessage("Exiting RTC alarm handler");
 }
 
 //
@@ -345,5 +346,5 @@ void loop()
     }
     digitalWrite(PIN_ONBOARD_LED, _ledOutput ? 1 : 0);
     _ledOutput = !_ledOutput;
-    delay(1000);
+    delay(250);
 }
