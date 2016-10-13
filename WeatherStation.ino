@@ -25,23 +25,24 @@
 //  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //  SOFTWARE.
-//  
+//
 #include <Arduino.h>
-#include "DS3231.h"
-#include "Debug.h"
-#include "Secrets.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <Time.h>
+//#include <NTPtimeeSP.h>
 #include <NtpClientLib.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <SparkFunTSL2561.h>
 #include <Wire.h>
-#include <SPI.h>
 #include <OneWire.h>
-#include "WeatherSensors.h"
 #include <Ticker.h>
+//
+#include "WeatherSensors.h"
+#include "DS3231.h"
+#include "Debug.h"
+#include "Secrets.h"
 
 //
 //  Definitions used in the code for pins etc.
@@ -69,6 +70,7 @@ volatile unsigned int _windSpeedCount = 0;
 volatile unsigned short _windDirectionReading = 0;
 volatile unsigned int _lastFiveSecondWindSpeedCount = 0;
 Ticker _fiveSecondTicker;
+Ticker _oneMinuteTicker;
 
 //
 //  Indicate if we should read the sesnosrs.
@@ -79,7 +81,7 @@ unsigned int _readingNumber = 0;
 //
 //  DS3234 real time clock object.
 //
-DS3231 *rtc;
+//DS3231 *rtc;
 #define MAX_NTP_RETRIES 10
 
 //
@@ -171,21 +173,23 @@ void UpdateRTCWithInternetTime(DS3231 *rtc)
     }
     if (retries < MAX_NTP_RETRIES)
     {
-        dateTime = new(ts);
-        dateTime->hour = hour(ntpTime);
-        dateTime->minutes = minute(ntpTime);
-        dateTime->seconds = second(ntpTime);
-        dateTime->day = day(ntpTime);
-        dateTime->month = month(ntpTime);
-        dateTime->year = year(ntpTime);
-        dateTime->wday = weekday(ntpTime);
-        rtc->SetDateTime(dateTime);
-        Debugger::DebugMessage("Setting RTC to: " + rtc->DateTimeString(dateTime));
-        delay(1000);
-    }
-    else
-    {
-        Debugger::DebugMessage("NTP retry count exceeded.");
+        //dateTime = new(ts);
+        //dateTime->hour = hour(ntpTime);
+        //dateTime->minutes = minute(ntpTime);
+        //dateTime->seconds = second(ntpTime);
+        //dateTime->day = day(ntpTime);
+        //dateTime->month = month(ntpTime);
+        //dateTime->year = year(ntpTime);
+        //dateTime->wday = weekday(ntpTime);
+        //rtc->SetDateTime(dateTime);
+        //Debugger::DebugMessage("Setting RTC to: " + rtc->DateTimeString(dateTime));
+        //delay(1000);
+        setTime(ntpTime);
+        Serial.printf("Time: %2d:%2d:%2d\n", hour(), minute(), second());
+        while (second() != 0)
+        {
+            delay(1000);
+        }
     }
     ntp->stop();
 }
@@ -221,23 +225,39 @@ void SetAlarm(DS3231 *rtc, uint8_t period)
 //
 void ReadAndPublishData()
 {
-    digitalWrite(PIN_ONBOARD_LED, HIGH);
+    float fReading;
+    unsigned uiReading;
+
     Debugger::DebugMessage("Reading sensor data (", _readingNumber, 10, ")");
     _sensors->ReadAllSensors();
-    Debugger::DebugMessage("Luminosity:", (float) _sensors->GetLuminosityReading(), 2u, "lumens");
-    Debugger::DebugMessage("Air temperature:", _sensors->GetAirTemperature(), 2u, "C");
-    Debugger::DebugMessage("Humidity:", _sensors->GetHumidity(), 2u, "%");
-    Debugger::DebugMessage("Humidity:", _sensors->GetAirPressure() / 100, 2u, "hPa");
-    Debugger::DebugMessage("Ground temperature:", _sensors->GetGroundTemperatureReading(), 2u, "C");
+    fReading = _sensors->GetLuminosityReading();
+    Debugger::DebugMessage("Luminosity:", fReading, 2u, "lumens");
+    fReading = _sensors->GetAirTemperature();
+    Debugger::DebugMessage("Air temperature:", fReading, 2u, "C");
+    fReading = _sensors->GetHumidity();
+    Debugger::DebugMessage("Humidity:", fReading, 2u, "%");
+    fReading = _sensors->GetAirPressure() / 100;
+    Debugger::DebugMessage("Humidity:", fReading, 2u, "hPa");
+    fReading = _sensors->GetGroundTemperatureReading();
+    Debugger::DebugMessage("Ground temperature:", fReading, 2u, "C");
     Debugger::DebugMessage("Rainfall today:", _pluviometerCountToday * 0.2794, 2u, "mm");
     Debugger::DebugMessage("Wind speed pulse count:", _lastFiveSecondWindSpeedCount, 10, "");
-    Debugger::DebugMessage("Wind speed:", (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2u, "mph");
+    fReading = (_lastFiveSecondWindSpeedCount * 1.492) / 5;
+    Debugger::DebugMessage("Wind speed:", fReading, 2u, "mph");
+
+    //Debugger::DebugMessage("Luminosity:", (float) _sensors->GetLuminosityReading(), 2u, "lumens");
+    //Debugger::DebugMessage("Air temperature:", _sensors->GetAirTemperature(), 2u, "C");
+    //Debugger::DebugMessage("Humidity:", _sensors->GetHumidity(), 2u, "%");
+    //Debugger::DebugMessage("Humidity:", _sensors->GetAirPressure() / 100, 2u, "hPa");
+    //Debugger::DebugMessage("Ground temperature:", _sensors->GetGroundTemperatureReading(), 2u, "C");
+    //Debugger::DebugMessage("Rainfall today:", _pluviometerCountToday * 0.2794, 2u, "mm");
+    //Debugger::DebugMessage("Wind speed pulse count:", _lastFiveSecondWindSpeedCount, 10, "");
+    //Debugger::DebugMessage("Wind speed:", (_lastFiveSecondWindSpeedCount * 1.492) / 5, 2u, "mph");
     //
     //  Now post to the Internet.
     //
     Debugger::DebugMessage("Posting to Internet.");
     PostDataToPhant();
-    digitalWrite(PIN_ONBOARD_LED, LOW);
 }
 
 //
@@ -256,7 +276,7 @@ void RTCAlarmHandler()
     //
     //  Reset the alarm.
     //
-    SetAlarm(rtc, 1);
+    //setAlarm(rtc, 1);
     //
     //  Indicate that the sensors should be read.
     //
@@ -273,12 +293,24 @@ void WindSpeedInterruptHandler()
 }
 
 //
-//  Hnadle the Ticker event every five seconds.
+//  Handle the Ticker event every five seconds.
 //
 void FiveSecondTickerInterruptHandler()
 {
     _lastFiveSecondWindSpeedCount = _windSpeedCount;
     _windSpeedCount = 0;
+}
+
+//
+//  Handle the Ticker event to indicate that we need to read the sensors.
+//
+void OneMinuteTickerInterruptHandler()
+{
+    _readSensors = true;
+    if ((hour() == 0) && (minute() == 0))
+    {
+        _pluviometerCountToday = 0;
+    }
 }
 
 //
@@ -300,8 +332,8 @@ void setup()
     Wire.begin();
     Wire.setClock(100000);
     //
-    rtc = new DS3231();
-    Debugger::AttachRTC(rtc);
+    //rtc = new DS3231();
+    //Debugger::AttachRTC(rtc);
     Debugger::DebugMessage("-----------------------------");
     Debugger::DebugMessage("Weather Station Starting (version " VERSION ", built: " __TIME__ " on " __DATE__ ")");
     //
@@ -317,8 +349,11 @@ void setup()
     //
     //  Get the current date and time from the RTC or a time server.
     //
-    UpdateRTCWithInternetTime(rtc);
-    SetAlarm(rtc, 1);
+    //UpdateRTCWithInternetTime(rtc);
+    UpdateRTCWithInternetTime(NULL);
+    _oneMinuteTicker.attach(60.0, OneMinuteTickerInterruptHandler);
+    _fiveSecondTicker.attach(5.0, FiveSecondTickerInterruptHandler);
+    //SetAlarm(rtc, 1);
     _sensors = new WeatherSensors();
     _sensors->InitialiseSensors();
     pinMode(PIN_RTC_INTERRUPT, INPUT);
@@ -329,8 +364,6 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(PIN_PLUVIOMETER), PluviometerInterruptHandler, FALLING);
     pinMode(PIN_WIND_DIRECTION, INPUT);
     pinMode(PIN_ONBOARD_LED, OUTPUT);
-    //
-    _fiveSecondTicker.attach(5.0, FiveSecondTickerInterruptHandler);
 }
 
 //
@@ -342,9 +375,11 @@ void loop()
     {
         _readSensors = false;
         _readingNumber++;
+        digitalWrite(PIN_ONBOARD_LED, HIGH);
         ReadAndPublishData();
+        digitalWrite(PIN_ONBOARD_LED, LOW);
     }
-    digitalWrite(PIN_ONBOARD_LED, _ledOutput ? 1 : 0);
+    digitalWrite(PIN_ONBOARD_LED, _ledOutput ? HIGH : LOW);
     _ledOutput = !_ledOutput;
     delay(250);
 }

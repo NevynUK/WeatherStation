@@ -39,9 +39,6 @@
     <ClInclude Include="Debug.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="BitBang.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DS3231.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -54,9 +51,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Debug.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="BitBang.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DS323xTimerFunctions.cpp">

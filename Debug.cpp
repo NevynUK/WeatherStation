@@ -49,6 +49,7 @@ void Debugger::DebugMessage(String message)
         Serial.print(": ");
     }
     Serial.println(message);
+    Serial.flush();
     yield();
 }
 
