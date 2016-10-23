@@ -110,12 +110,16 @@ void WeatherSensors::ReadAllSensors()
 {
     //ReadSTM8SSensors();
     ReadGroundTemperatureSensor();
+    yield();
     ReadLuminositySensor();
+    yield();
     ReadTemperatureHumidityPressureSensor();
+    yield();
     //ReadUltravioletLightSensor();
     //ReadRainfallSensor();
     //ReadWindSpeedSensor();
     ReadWindDirection();
+    yield();
 }
 
 //******************************************************************************

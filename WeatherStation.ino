@@ -47,7 +47,7 @@
 //
 //  Definitions used in the code for pins etc.
 //
-#define VERSION                 "0.19"
+#define VERSION                 "0.20"
 //
 #define PIN_ONBOARD_LED         1
 #define PIN_WIND_SPEED          9
@@ -381,5 +381,5 @@ void loop()
     }
     digitalWrite(PIN_ONBOARD_LED, _ledOutput ? HIGH : LOW);
     _ledOutput = !_ledOutput;
-    delay(250);
+    delay(500);
 }
